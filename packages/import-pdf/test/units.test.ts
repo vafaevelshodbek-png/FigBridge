@@ -106,7 +106,7 @@ function glyph(text: string, x: number, y: number, size = 20, advance = size * 0
 }
 
 function word(text: string, x: number, y: number, size = 20): Glyph[] {
-  return [...text].map((ch, i) => glyph(ch, x + i * size * 0.5, y, size));
+  return Array.from(text).map((ch, i) => glyph(ch, x + i * size * 0.5, y, size));
 }
 
 describe("text reconstruction", () => {
