@@ -5,12 +5,12 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "figbridge": "./dist/cli.js"
+    "figbridge": "./dist/cli.mjs"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     }
   },
   "files": [
@@ -34,6 +34,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "catalog:",
     "@types/ws": "catalog:",
     "tsdown": "catalog:"
   }

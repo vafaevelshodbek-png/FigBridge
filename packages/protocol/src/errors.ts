@@ -98,9 +98,15 @@ export class BridgeError extends Error {
     });
   }
 
-  /** Normalize anything thrown into a `BridgeError` (unknown failures become `INTERNAL`). */
+  /** Normalize anything thrown into a `BridgeError` (schema errors → `VALIDATION`, unknown → `INTERNAL`). */
   static from(thrown: unknown): BridgeError {
     if (thrown instanceof BridgeError) return thrown;
+    if (thrown instanceof z.ZodError) {
+      return new BridgeError("VALIDATION", z.prettifyError(thrown), {
+        data: thrown.issues,
+        cause: thrown,
+      });
+    }
     const message = thrown instanceof Error ? thrown.message : String(thrown);
     return new BridgeError("INTERNAL", message, { cause: thrown });
   }
