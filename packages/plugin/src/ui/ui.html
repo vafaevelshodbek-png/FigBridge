@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; padding: 14px 16px; font: 12px/1.45 Inter, system-ui, sans-serif;
+         background: var(--figma-color-bg, #fff); color: var(--figma-color-text, #1e1e1e); }
+  #status { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  #status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #b3b3b3; }
+  #status[data-state="connected"]::before { background: #14ae5c; }
+  #status[data-state="waiting"]::before, #status[data-state="connecting"]::before { background: #ffcd29; }
+  #status[data-state="unauthorized"]::before, #status[data-state="pairing"]::before,
+  #status[data-state="incompatible"]::before { background: #f24822; }
+  #detail { margin-top: 6px; color: var(--figma-color-text-secondary, #6b6b6b); word-break: break-word; }
+  form { margin-top: 12px; display: flex; gap: 6px; }
+  input { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 5px; font: inherit;
+          border: 1px solid var(--figma-color-border, #d9d9d9); background: transparent; color: inherit; }
+  button { padding: 6px 10px; border: 0; border-radius: 5px; font: inherit; font-weight: 600;
+           background: var(--figma-color-bg-brand, #0d99ff); color: var(--figma-color-text-onbrand, #fff); }
+</style>
+</head>
+<body>
+  <div id="status" data-state="connecting">Starting…</div>
+  <div id="detail"></div>
+  <form id="pair" hidden>
+    <input id="token" autocomplete="off" spellcheck="false" placeholder="Pairing token" aria-label="Pairing token" />
+    <button type="submit">Pair</button>
+  </form>
+  <script>/*__UI_SCRIPT__*/</script>
+</body>
+</html>

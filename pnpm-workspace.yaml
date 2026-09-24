@@ -1,6 +1,10 @@
 packages:
   - "packages/*"
 
+# Only these dependencies may run install scripts (native binaries).
+allowBuilds:
+  esbuild: true
+
 catalog:
   "@biomejs/biome": 2.5.14
   "@types/node": ^24.0.0
@@ -24,3 +28,6 @@ catalog:
   "@modelcontextprotocol/server": ^2.1.0
   "@modelcontextprotocol/node": ^2.1.0
   "@figma/plugin-typings": ^1.139.0
+
+minimumReleaseAgeExclude:
+  - '@figma/plugin-typings@1.139.0'

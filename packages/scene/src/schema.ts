@@ -198,8 +198,9 @@ export const GroupNodeSchema = z.object({
   type: z.literal("group"),
   opacity: Unit.default(1),
   visible: z.boolean().default(true),
-  // Getter: zod v4's way to declare a recursive schema with full type inference.
-  get children() {
+  // Getter + explicit return type: zod v4's way to declare a recursive schema that
+  // TypeScript can infer without collapsing children to `unknown`.
+  get children(): z.ZodArray<typeof SceneNodeSchema> {
     return z.array(SceneNodeSchema).min(1);
   },
 });

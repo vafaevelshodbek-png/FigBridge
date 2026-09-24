@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/coverage/**",
       "eslint.config.js",
       "**/*.config.ts",
+      "**/build.mjs",
     ],
   },
   ...tseslint.configs.strictTypeChecked,

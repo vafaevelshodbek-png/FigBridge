@@ -1,0 +1,17 @@
+{
+  "name": "@figbridge/plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "figbridge Figma plugin: connects a Figma file to the local figbridge hub.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@figbridge/protocol": "workspace:*",
+    "@figbridge/scene": "workspace:*",
+    "@figma/plugin-typings": "catalog:",
+    "esbuild": "catalog:"
+  }
+}

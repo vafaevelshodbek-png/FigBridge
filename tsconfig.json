@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/protocol" },
     { "path": "packages/scene" },
-    { "path": "packages/figbridge" }
+    { "path": "packages/figbridge" },
+    { "path": "packages/plugin" }
   ]
 }
