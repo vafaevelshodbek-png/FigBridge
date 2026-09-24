@@ -1,0 +1,105 @@
+# 01 — Competitor teardown: agent ↔ Figma bridges
+
+Researched 2026-09-24 from shallow clones of each repo's default branch (HEAD dates in the table), plus GitHub issue search and the official Figma docs. File paths are relative to each repo root. Star counts are from `gh api` on the same day.
+
+## 1. Summary table
+
+| | grab/cursor-talk-to-figma-mcp | arinspunk/claude-talk-to-figma-mcp | southleft/figma-console-mcp | awdr74100/figwright | GLips/Figma-Context-MCP (Framelink) | Official Figma MCP |
+|---|---|---|---|---|---|---|
+| Stars / HEAD | 7.0k / 2026-07-26 | 664 / 2026-04-18 | 2.4k / 2026-09-24 | 887 / 2026-09-25 | 15.9k / 2026-06-24 | n/a |
+| Data path | MCP stdio → WS relay → plugin UI iframe → sandbox | same as grab (fork) | MCP stdio → embedded WS server → plugin (also Cloudflare cloud relay) | MCP stdio → embedded WS relay (leader-elected) → plugin | Figma **REST API** only, no plugin; read-only | Remote hosted server (write via Plugin API over WebSocket) + desktop server |
+| Language / build | TS on Bun, tsup; plugin is hand-written `code.js` (4.3k lines) + `ui.html` | TS/Bun, tsup, tools split by domain; plugin still one `code.js` (6.2k lines) | TS, `tsc` + Vite (apps) + wrangler; plugin plain `code.js`/`ui.html` | TS pnpm monorepo (`mcp`/`plugin`/`shared`), tsdown + Vite, zod, msgpack | TS pnpm, tsup, eslint/prettier, lefthook, release-please | closed source |
+| Tests / CI | none, no `.github` | Jest: 4 unit + 3 integration files; `test.yml` | Jest, ~56 test files; CI runs only in `publish.yml` | Vitest, ~207 test files; CI + actionlint + zizmor + semantic-PR + renovate | Vitest, 19 test files (incl. benchmark); `ci.yml` | n/a |
+| Tool count | 44 | ~94 | ~50+ `figma_*` (incl. `figma_execute`) | 115 + `batch` | 2 (`get_figma_data`, `download_figma_images`) | ~30 (read + `use_figma` write) |
+| Binding / auth | Bun default host (all interfaces), `ACAO: *`, no auth, channel name as the only "secret" | same | `localhost`, WS Origin allowlist (`null`, figma.com) | 127.0.0.1, Origin **and Host** allowlist (DNS rebinding) | 127.0.0.1 default for HTTP mode | OAuth, MCP catalog allowlist |
+
+Sources: grab [`src/socket.ts`](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/socket.ts), [`src/talk_to_figma_mcp/server.ts`](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/talk_to_figma_mcp/server.ts), [`manifest.json`](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/cursor_mcp_plugin/manifest.json); arinspunk [`src/socket.ts`](https://github.com/arinspunk/claude-talk-to-figma-mcp/blob/main/src/socket.ts), [`utils/websocket.ts`](https://github.com/arinspunk/claude-talk-to-figma-mcp/blob/main/src/talk_to_figma_mcp/utils/websocket.ts); southleft [`src/core/websocket-server.ts`](https://github.com/southleft/figma-console-mcp/blob/main/src/core/websocket-server.ts), [`src/core/port-discovery.ts`](https://github.com/southleft/figma-console-mcp/blob/main/src/core/port-discovery.ts); figwright [`packages/`](https://github.com/awdr74100/figwright/tree/main/packages), [README](https://github.com/awdr74100/figwright#readme); Framelink [`src/mcp/`](https://github.com/GLips/Figma-Context-MCP/tree/main/src/mcp), [`src/config.ts`](https://github.com/GLips/Figma-Context-MCP/blob/main/src/config.ts); official [tools page](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/), [rate limits](https://developers.figma.com/docs/figma-mcp-server/rate-limits-access/).
+
+## 2. Transport designs compared
+
+### grab: a three-process relay with channels
+- The relay is a separate Bun process on port 3055 ([`socket.ts`](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/socket.ts)). Clients `join` a named channel, and every `message` is **broadcast** to the other members of that channel. There are no roles, so responses can reach the wrong party when several agents share a channel.
+- Messages are JSON `{type, channel, id, message:{command, params} | {result|error}}`, with a uuid v4 request id in `pendingRequests`. The default timeout is 30 s, and `progress_update` resets it to 60 s ([server.ts ~L2890–3050](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/talk_to_figma_mcp/server.ts)).
+- **The progress reset never worked.** The relay drops every type except `join`/`message`, and `figma.ui.postMessage` is batched until the sandbox function yields ([#149](https://github.com/grab/cursor-talk-to-figma-mcp/issues/149)).
+- Reconnection is a fixed 2 s retry. The relay logs full payloads, including base64 images ([PR #189](https://github.com/grab/cursor-talk-to-figma-mcp/pull/189)).
+- `hostname` is commented out, so Bun binds all interfaces. Combined with `Access-Control-Allow-Origin: *` and no auth, the only secret is the channel name ([#163](https://github.com/grab/cursor-talk-to-figma-mcp/issues/163)). The manifest also allows Google Analytics.
+
+### arinspunk: the same relay, hardened
+- Adds plugin/agent roles, a per-channel **serialized command queue** with size limits, unicast responses routed via `requestToClient`, a stable `sessionId` for reconnect dedup, and a blocked `set_current_page` ([`socket.ts` L1–160](https://github.com/arinspunk/claude-talk-to-figma-mcp/blob/main/src/socket.ts)).
+- The client side ([`utils/websocket.ts`](https://github.com/arinspunk/claude-talk-to-figma-mcp/blob/main/src/talk_to_figma_mcp/utils/websocket.ts)) uses a 10 s connect timeout and a 300 s default request timeout. That extends to 5 min while queued and 120 s per progress tick. Backoff is jittered up to 30 s, with a `ping` probe.
+- The very long timeouts mask hangs rather than surfacing them. Users still report timeouts on creation ([#20](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues/20), [#34](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues/34)), and `join_channel` succeeds even with an invalid channel ([#51](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues/51)).
+
+### southleft: an embedded server keyed by fileKey
+- The MCP process itself hosts a `ws` server that binds `localhost` ([websocket-server.ts L313–355](https://github.com/southleft/figma-console-mcp/blob/main/src/core/websocket-server.ts)). `verifyClient` checks Origin, `maxPayload` is 100 MB, and ping/pong provides a heartbeat.
+- Multi-file support: each plugin instance sends `FILE_INFO{fileKey}` and must do so before an identification timeout. Clients live in `Map<fileKey, conn>` with an "active file". On reconnect, pending requests are rejected immediately instead of left to hang (L599–691).
+- Multi-instance support: it tries ports 9223–9232 and writes `/tmp/figma-console-mcp-{port}.json` with PID and heartbeat. The plugin scans the range, and a zombie reaper runs `lsof`/`ps` ([port-discovery.ts](https://github.com/southleft/figma-console-mcp/blob/main/src/core/port-discovery.ts)).
+- On Windows, stdin EOF is ignored, so orphaned servers leak one port per session until the range is exhausted ([#116](https://github.com/southleft/figma-console-mcp/issues/116)). The active file can switch silently on a peer's selection or page event ([#72](https://github.com/southleft/figma-console-mcp/issues/72)).
+
+### figwright: the reference design
+- Typed envelopes in [`shared/src/envelope.ts`](https://github.com/awdr74100/figwright/blob/main/packages/shared/src/envelope.ts): `{v, id, ts, sessionId, kind: req|res|err|evt}`. They are zod-validated and **msgpack**-encoded ([`codec.ts`](https://github.com/awdr74100/figwright/blob/main/packages/shared/src/codec.ts)).
+- A `$hello` handshake negotiates the protocol version and returns `skewNotice` and `sessionResumed`, so a version mismatch fails with a clear message.
+- Binary exports travel as msgpack `bin`, which avoids the 33% base64 overhead, with a base64 fallback for old plugins ([`binary-payload.ts`](https://github.com/awdr74100/figwright/blob/main/packages/mcp/src/tools/binary-payload.ts)).
+- Heartbeat is 15 s with 2 allowed misses ([`heartbeat.ts`](https://github.com/awdr74100/figwright/blob/main/packages/shared/src/heartbeat.ts)). The plugin reconnects with backoff capped at 5 s, or 1 s on cold start ([`ui/relay/client.ts`](https://github.com/awdr74100/figwright/blob/main/packages/plugin/ui/relay/client.ts)).
+- **Nested timeout budgets** come from one table ([`tool-budgets.ts`](https://github.com/awdr74100/figwright/blob/main/packages/shared/src/tool-budgets.ts)). The sandbox bridge is innermost, then relay, then follower. Each outer layer is base + 5 s per layer, and the base is 30 s by default or 120 s for heavy tools. The innermost timer therefore always fires first with the most specific error.
+- **Leader election** lets many MCP processes share one port. One process binds 127.0.0.1:3055 as leader, and the others become followers that proxy over HTTP RPC. There is a takeover and abdication protocol ([`election/`](https://github.com/awdr74100/figwright/tree/main/packages/mcp/src/election)). Each agent claims one file ("one agent per file").
+- Security: loopback bind, an Origin allowlist (`null`, figma.com), a **Host allowlist against DNS rebinding** (Playwright-style), and a documented env escape hatch ([`local-access.ts`](https://github.com/awdr74100/figwright/blob/main/packages/mcp/src/local-access.ts)).
+- Weak spot: the plugin scans ports 3055–3064, and "no relay server found" is its top reported issue ([#63](https://github.com/awdr74100/figwright/issues/63)). The manifest `allowedDomains: ["*"]` exists only to support image URLs.
+
+### Framelink: REST instead of a plugin
+- Stdio or StreamableHTTP (`/mcp`, plus `/sse` for compatibility). It binds `127.0.0.1` by default ([`config.ts` L151](https://github.com/GLips/Figma-Context-MCP/blob/main/src/config.ts), [`server.ts`](https://github.com/GLips/Figma-Context-MCP/blob/main/src/server.ts)).
+- There is no liveness problem, but it pays in Figma API rate limits ([#258](https://github.com/GLips/Figma-Context-MCP/issues/258), [#287](https://github.com/GLips/Figma-Context-MCP/issues/287)) and cannot write.
+
+### Official
+- `use_figma`, `generate_figma_design` and `generate_diagram` run Plugin API code over WebSocket, and the write tools are **remote-only** ([tools](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)).
+- Reads are capped at 200–600 calls/day on Dev/Full seats and 6/month on View/Collab. Writes are exempt ([rate limits](https://developers.figma.com/docs/figma-mcp-server/rate-limits-access/)).
+- `download_assets` is limited to 20 nodes/call, and `upload_assets` to 10 MB per asset.
+
+## 3. MCP tool design: patterns to copy and to avoid
+
+**Copy:**
+- **Sparse outline before detail.** The official `get_metadata` returns a sparse XML tree of ids, names, types and bounds. `get_design_context` is the full read and `get_screenshot` is separate ([tools](https://developers.figma.com/docs/figma-mcp-server/tools-and-prompts/)).
+- **Dedup and compact serialization.** Framelink hoists repeated styles into `globalVars`, stores templates in `elements`, and strips noise names such as auto-generated and TEXT layer names ([`serializable-design.ts`](https://github.com/GLips/Figma-Context-MCP/blob/main/src/utils/serializable-design.ts)). It accepts a `depth` param and offers YAML or tree output. Figwright has `design-context-dedupe.ts`.
+- **Response-size budgeting.** southleft estimates size (≈4 chars/token) and downgrades verbosity through `inventory → summary → standard → full` at 100/200/500/1000 KB thresholds ([`figma-tools.ts` L105–280](https://github.com/southleft/figma-console-mcp/blob/main/src/core/figma-tools.ts)). Without this, agents loop on oversized trees ([Framelink #142](https://github.com/GLips/Figma-Context-MCP/issues/142), [grab #35](https://github.com/grab/cursor-talk-to-figma-mcp/issues/35)).
+- **Atomic `batch` with rollback.** Figwright snapshots every target, applies ops in order and rolls back on failure. Ops without an exact inverse, such as deletes, are refused ([`tools/batch.ts`](https://github.com/awdr74100/figwright/blob/main/packages/mcp/src/tools/batch.ts)). This is the right answer to "44 tiny tools, one round-trip each".
+- **Large binaries go to disk, not the context.** Figwright's `save_screenshots`/`export_pdf` write files and return paths. Return an MCP `image` content block only for small previews, as grab does in `export_node_as_image`.
+- **An escape hatch.** southleft's `figma_execute` evals user code in an async IIFE inside the sandbox with a timeout ([`code.js` L492–535](https://github.com/southleft/figma-console-mcp/blob/main/figma-desktop-bridge/code.js)). The official `use_figma` is the same idea. It is powerful, but gate it and cap its output.
+- **Skills and instructions shipped with the server.** Figwright ships a `skills/` folder, and the official server ships a `create_design_system_rules` prompt.
+
+**Avoid:**
+- **Many near-duplicate setters.** grab has `set_padding`, `set_axis_align`, `set_item_spacing`, `set_layout_mode` and more ([server.ts](https://github.com/grab/cursor-talk-to-figma-mcp/blob/main/src/talk_to_figma_mcp/server.ts)). This bloats the tool list and multiplies round-trips.
+- **A connection ritual exposed as a tool.** grab's `join_channel` has to be called before anything works, and the prompt tells the model "Always join the appropriate channel first".
+- **Behavioral directives in tool descriptions.** Flagged as a prompt-injection-style risk in [#163](https://github.com/grab/cursor-talk-to-figma-mcp/issues/163). Design content itself can also carry injection ([Framelink #303](https://github.com/GLips/Figma-Context-MCP/issues/303)).
+- **Silently ignored parameters.** southleft `page`/`pageSize` are ignored when `format='full'` ([#98](https://github.com/southleft/figma-console-mcp/issues/98)). Framelink's download reports success but writes nothing ([#364](https://github.com/GLips/Figma-Context-MCP/issues/364)).
+
+## 4. Common failure modes (from issues)
+
+| Failure mode | Evidence |
+|---|---|
+| Fixed timeouts on long ops; progress keepalive broken by sandbox `postMessage` batching | [grab #149](https://github.com/grab/cursor-talk-to-figma-mcp/issues/149), [#70](https://github.com/grab/cursor-talk-to-figma-mcp/issues/70), [#93](https://github.com/grab/cursor-talk-to-figma-mcp/issues/93) |
+| Handler never settles, so the request hangs forever; responses dropped silently on a closed socket | [southleft #94](https://github.com/southleft/figma-console-mcp/issues/94) |
+| `getNodeByIdAsync` on a missing id never resolves and surfaces as a misleading "check your internet" error | [southleft #133](https://github.com/southleft/figma-console-mcp/issues/133) |
+| Big traversals freeze the plugin and the per-call timeout is not honored (sync work blocks the timer) | [southleft #80](https://github.com/southleft/figma-console-mcp/issues/80), [#120](https://github.com/southleft/figma-console-mcp/issues/120) (300 s vs 493 ms for the same walk via execute) |
+| Component-set instances time out | [arinspunk #34](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues/34) |
+| Figma kills the plugin iframe every 1–3 min, which no keepalive can fix | [southleft #67](https://github.com/southleft/figma-console-mcp/issues/67) |
+| Orphan servers on Windows (no signals, stdin EOF ignored) exhaust the port range; stale-server detection fails | [southleft #116](https://github.com/southleft/figma-console-mcp/issues/116), [#40](https://github.com/southleft/figma-console-mcp/issues/40), [#39](https://github.com/southleft/figma-console-mcp/issues/39), [#7](https://github.com/southleft/figma-console-mcp/issues/7) |
+| Plugin cannot find the server (port scan) | [figwright #63](https://github.com/awdr74100/figwright/issues/63) |
+| Windows setup pain (Bun, certificates, WSL binding) | [grab #71](https://github.com/grab/cursor-talk-to-figma-mcp/issues/71), [#102](https://github.com/grab/cursor-talk-to-figma-mcp/issues/102), [#83](https://github.com/grab/cursor-talk-to-figma-mcp/issues/83), [arinspunk #15](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues/15), [Framelink #300](https://github.com/GLips/Figma-Context-MCP/issues/300) (drive-root path check) |
+| Multi-file routing: the target file silently switches | [southleft #72](https://github.com/southleft/figma-console-mcp/issues/72) |
+| Fonts: text edits fail without `loadFontAsync`; no fontFamily param | [grab #59](https://github.com/grab/cursor-talk-to-figma-mcp/issues/59), [#138](https://github.com/grab/cursor-talk-to-figma-mcp/issues/138), [#76](https://github.com/grab/cursor-talk-to-figma-mcp/issues/76) |
+| Image export returns an unexpected format or errors | [grab #25](https://github.com/grab/cursor-talk-to-figma-mcp/issues/25), [#38](https://github.com/grab/cursor-talk-to-figma-mcp/issues/38), [#125](https://github.com/grab/cursor-talk-to-figma-mcp/issues/125) |
+| Oversized payloads overflow the context, so agents re-call in a loop | [Framelink #142](https://github.com/GLips/Figma-Context-MCP/issues/142), [grab #35](https://github.com/grab/cursor-talk-to-figma-mcp/issues/35) |
+| Progress notification arrives after the response and crashes stdio | [Framelink #362](https://github.com/GLips/Figma-Context-MCP/issues/362) |
+| Security: open bind, no auth, SDK CVEs | [grab #163](https://github.com/grab/cursor-talk-to-figma-mcp/issues/163), [#148](https://github.com/grab/cursor-talk-to-figma-mcp/issues/148), [southleft #104](https://github.com/southleft/figma-console-mcp/issues/104) |
+
+## 5. Recommendations for our design
+
+1. **One process, loopback only.** Bind `127.0.0.1` explicitly, never rely on the runtime default (grab's bug). Check both Origin (`null`/figma.com) and Host (loopback names), following figwright's [`local-access.ts`](https://github.com/awdr74100/figwright/blob/main/packages/mcp/src/local-access.ts). Add a per-install random token that the plugin pastes once or reads from the server's hello page, so any other local process cannot drive Figma. Log nothing sensitive.
+2. **Typed protocol with a version handshake.** Use `req/res/err/evt` envelopes with a uuid id, `v`, and `sessionId`, validated by shared zod schemas in a `shared` package. Send `hello{protocolVersion}` and reject a mismatch with an actionable message. JSON is fine at first. Send binaries as raw bytes (msgpack or WS binary frames) or write them to disk, never as base64 in the context.
+3. **Layered timeouts from one table.** The sandbox timer must be shorter than the relay timer, which must be shorter than the MCP timer, and heavy ops get bigger budgets (figwright's [`tool-budgets.ts`](https://github.com/awdr74100/figwright/blob/main/packages/shared/src/tool-budgets.ts)). Every handler is wrapped in `Promise.race`. Wrap `getNodeByIdAsync` with a timeout and an explicit NOT_FOUND. On disconnect, reject pending requests at once.
+4. **Yield in long loops** (`await new Promise(r => setTimeout(r, 0))` every N nodes) so progress messages flush and the UI stays responsive (grab #149, southleft #80). Chunk traversals and support cancellation.
+5. **Assume the plugin dies.** Heartbeat about every 15 s with 2 misses, fast reconnect with backoff capped at about 5 s, resumable sessions, and server-side awareness that "plugin not connected" is a normal state. Return that as a clear error telling the user to reopen the plugin, not as a timeout.
+6. **Windows first-class.** Exit on stdin EOF or parent death in addition to signals (southleft #116). Use one fixed port plus a lockfile with PID in `%TEMP%`, and do not scan port ranges. Handle drive-root and Cyrillic paths. Run CI on `windows-latest`. Use Node, not Bun, for the runtime.
+7. **Multi-file.** The plugin reports `fileKey`/name on hello. Every tool takes an optional `file`, and the server requires one explicitly when more than one file is connected. Never auto-switch the target on selection events (southleft #72).
+8. **Tool surface.** About 15–25 tools with a sparse outline read (ids/names/types/bounds, depth- and size-capped, paginated), a detailed node read with a verbosity level, a screenshot/export that saves to disk and returns a path (plus an optional small inline image), a declarative `apply`/`batch` write that takes a JSON spec and is atomic with rollback, and a gated `execute` escape hatch. Enforce response budgets with a truncation marker and a "next cursor". Never ignore parameters silently. Keep tool descriptions free of behavioral directives. Treat text from Figma as untrusted data.
+9. **Fonts.** Resolve and `loadFontAsync` every font a spec needs before any write. Report missing fonts in a structured way with the substitution used. For the pptx/PDF importer, this plus fallback mapping is the main correctness risk.
+10. **Engineering bar (match figwright).** pnpm monorepo `server`/`plugin`/`shared`, TS strict, Vite/esbuild plugin build, Vitest with protocol contract tests and a fake plugin, and CI on Linux and Windows running lint, typecheck, test and actionlint. Add SECURITY.md, a changelog, and a troubleshooting doc built from the failure table above.

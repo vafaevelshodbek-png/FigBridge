@@ -1,0 +1,26 @@
+packages:
+  - "packages/*"
+
+catalog:
+  "@biomejs/biome": 2.5.14
+  "@types/node": ^24.0.0
+  "@vitest/coverage-v8": ^5.0.1
+  eslint: ^9.30.0
+  typescript: 6.0.3
+  typescript-eslint: ^8.70.1
+  vitest: ^5.0.1
+  zod: ^4.6.5
+  tsdown: ^0.23.0
+  esbuild: ^0.28.2
+  ws: ^8.21.3
+  "@types/ws": ^8.18.0
+  pdfjs-dist: ^6.3.289
+  "@napi-rs/canvas": ^1.0.9
+  fflate: ^0.8.3
+  fast-xml-parser: ^5.11.1
+  commander: ^15.0.0
+  pino: ^10.3.1
+  ulid: ^3.0.0
+  "@modelcontextprotocol/server": ^2.1.0
+  "@modelcontextprotocol/node": ^2.1.0
+  "@figma/plugin-typings": ^1.139.0

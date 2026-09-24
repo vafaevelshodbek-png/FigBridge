@@ -1,0 +1,27 @@
+{
+  "name": "@figbridge/protocol",
+  "version": "0.0.0",
+  "description": "Wire protocol between the figbridge hub and the Figma plugin: envelopes, methods, errors.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "@figbridge/scene": "workspace:*",
+    "ulid": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

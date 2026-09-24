@@ -1,0 +1,25 @@
+{
+  "name": "@figbridge/scene",
+  "version": "0.0.0",
+  "description": "Scene IR: the editable layer tree shared by figbridge importers and the Figma renderer.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

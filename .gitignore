@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.turbo/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+Thumbs.db
+*.log
+.env
+# local-only test documents and outputs
+corpus-local/
+out/
+.tsbuild/
