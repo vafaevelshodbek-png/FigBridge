@@ -2,7 +2,15 @@
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/.tsbuild/**", "**/coverage/**", "eslint.config.js", "**/*.config.ts"] },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/.tsbuild/**",
+      "**/coverage/**",
+      "eslint.config.js",
+      "**/*.config.ts",
+    ],
+  },
   ...tseslint.configs.strictTypeChecked,
   {
     languageOptions: {

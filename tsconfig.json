@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "packages/protocol" }, { "path": "packages/scene" }]
+  "references": [
+    { "path": "packages/protocol" },
+    { "path": "packages/scene" },
+    { "path": "packages/figbridge" }
+  ]
 }

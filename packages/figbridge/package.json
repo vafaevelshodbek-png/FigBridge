@@ -1,0 +1,40 @@
+{
+  "name": "figbridge",
+  "version": "0.0.0",
+  "description": "Let AI agents read and write Figma, and turn PDF/PPTX decks into editable Figma layers.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "figbridge": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@figbridge/protocol": "workspace:*",
+    "@figbridge/scene": "workspace:*",
+    "@modelcontextprotocol/node": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "commander": "catalog:",
+    "pino": "catalog:",
+    "ulid": "catalog:",
+    "ws": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/ws": "catalog:",
+    "tsdown": "catalog:"
+  }
+}
