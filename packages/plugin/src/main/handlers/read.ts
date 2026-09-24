@@ -111,10 +111,11 @@ export const nodeExport: Handler<"node.export"> = async ({ nodeId, format, scale
         });
   const blob = await ctx.ui.putBlob(bytes, MIME[format]);
   const factor = format === "svg" ? 1 : scale;
+  const size = "width" in node ? { w: node.width, h: node.height } : { w: 0, h: 0 };
   return {
     blob,
     mimeType: MIME[format],
-    width: Math.round(node.width * factor),
-    height: Math.round(node.height * factor),
+    width: Math.round(size.w * factor),
+    height: Math.round(size.h * factor),
   };
 };

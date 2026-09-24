@@ -9,16 +9,22 @@
       "@figbridge/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./render": {
+      "@figbridge/source": "./src/render.ts",
+      "types": "./dist/render.d.mts",
+      "import": "./dist/render.mjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --clean"
+    "build": "tsdown src/index.ts src/render.ts --format esm --dts --clean"
   },
   "dependencies": {
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@napi-rs/canvas": "catalog:"
   },
   "devDependencies": {
     "tsdown": "catalog:"

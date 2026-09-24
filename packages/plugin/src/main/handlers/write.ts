@@ -80,7 +80,7 @@ export const nodeUpdate: Handler<"node.update"> = async ({ nodeId, props }, ctx)
   if (props.cornerRadius !== undefined) {
     if (!("cornerRadius" in layer))
       throw new PluginError("VALIDATION", `Node ${nodeId} has no corner radius.`);
-    layer.cornerRadius = props.cornerRadius;
+    (layer as SceneNode & CornerMixin).cornerRadius = props.cornerRadius;
   }
   figma.commitUndo();
   return summarize(layer);

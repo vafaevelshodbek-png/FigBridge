@@ -173,7 +173,7 @@ export const ParagraphSchema = z.object({
 export const TextNodeSchema = z.object({
   ...NodeBase,
   type: z.literal("text"),
-  /** Characters; paragraphs separated by "\n", soft line breaks by " ". */
+  /** Characters; paragraphs separated by "\n", soft line breaks by "\u2028". */
   characters: z.string(),
   runs: z.array(TextRunSchema).min(1),
   paragraphs: z.array(ParagraphSchema).default([]),

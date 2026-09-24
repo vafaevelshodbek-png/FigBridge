@@ -12,6 +12,7 @@
     "noPropertyAccessFromIndexSignature": true,
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
+    "customConditions": ["@figbridge/source"],
     "isolatedModules": true,
     "resolveJsonModule": true,
     "declaration": true,

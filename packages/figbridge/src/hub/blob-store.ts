@@ -4,8 +4,8 @@
  * Blobs are addressed as `<kind>:<id>` (see `BlobRefSchema` in @figbridge/scene), live for a
  * bounded time and the store has a total size cap, so an abandoned import cannot exhaust memory.
  */
-import { createHash } from "node:crypto";
 import { BridgeError } from "@figbridge/protocol";
+import { contentBlobId } from "@figbridge/scene";
 
 export interface BlobEntry {
   readonly bytes: Uint8Array;
@@ -59,7 +59,7 @@ export class BlobStore {
         `Blob of ${bytes.byteLength} bytes exceeds the ${this.#options.maxBlobBytes}-byte limit.`,
       );
     }
-    const id = `${kind}:${createHash("sha256").update(bytes).digest("base64url").slice(0, 32)}`;
+    const id = contentBlobId(bytes, kind);
     if (!this.#entries.has(id)) {
       this.#entries.set(id, { bytes, mimeType, createdAt: this.#now() });
       this.#totalBytes += bytes.byteLength;

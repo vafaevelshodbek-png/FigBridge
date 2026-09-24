@@ -1,0 +1,28 @@
+{
+  "name": "@figbridge/import-pdf",
+  "version": "0.0.0",
+  "description": "PDF → editable Scene IR (pdf.js-based, Apache-2.0 dependencies only).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@figbridge/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "@figbridge/scene": "workspace:*",
+    "@napi-rs/canvas": "catalog:",
+    "pdfjs-dist": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  }
+}

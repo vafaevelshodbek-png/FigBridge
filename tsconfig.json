@@ -4,6 +4,7 @@
     { "path": "packages/protocol" },
     { "path": "packages/scene" },
     { "path": "packages/figbridge" },
-    { "path": "packages/plugin" }
+    { "path": "packages/plugin" },
+    { "path": "packages/import-pdf" }
   ]
 }

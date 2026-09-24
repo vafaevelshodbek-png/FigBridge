@@ -10,6 +10,7 @@ export default tseslint.config(
       "eslint.config.js",
       "**/*.config.ts",
       "**/build.mjs",
+      "**/scripts/**",
     ],
   },
   ...tseslint.configs.strictTypeChecked,
