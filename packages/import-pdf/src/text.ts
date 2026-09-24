@@ -53,7 +53,6 @@ export function repairLigatures(glyphs: readonly Glyph[]): Glyph[] {
   };
   const out: Glyph[] = [];
   for (const g of glyphs) {
-    // eslint-disable-next-line no-control-regex -- detecting unmapped glyphs is the point
     if (!/^[\u0000-\u001f]+$/.test(g.text) || g.size <= 0) {
       out.push(g);
       continue;
