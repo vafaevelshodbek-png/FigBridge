@@ -1,4 +1,5 @@
 // Dev helper: import pages of a PDF and print a compact summary of the Scene.
+// Usage: node summary.mjs deck.pdf 1,2,3 [scene.json]
 import { readFileSync, writeFileSync } from "node:fs";
 import { importPdf } from "../dist/index.mjs";
 
@@ -32,4 +33,4 @@ console.log(
   "ms",
   Date.now() - t0,
 );
-writeFileSync("C:/dev/tmp-scene.json", JSON.stringify(scene, null, 1));
+if (process.argv[4]) writeFileSync(process.argv[4], JSON.stringify(scene, null, 1));

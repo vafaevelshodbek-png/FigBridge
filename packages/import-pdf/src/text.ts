@@ -53,7 +53,7 @@ export function repairLigatures(glyphs: readonly Glyph[]): Glyph[] {
   };
   const out: Glyph[] = [];
   for (const g of glyphs) {
-    if (!/^[\u0000-\u001f]+$/.test(g.text) || g.size <= 0) {
+    if (!isUnmapped(g.text) || g.size <= 0) {
       out.push(g);
       continue;
     }
@@ -69,6 +69,11 @@ export function repairLigatures(glyphs: readonly Glyph[]): Glyph[] {
       out.push({ ...g, text: best.text });
   }
   return out;
+}
+
+/** pdf.js yields C0 control characters for glyphs without a Unicode mapping. */
+function isUnmapped(text: string): boolean {
+  return text.length > 0 && Array.from(text).every((ch) => ch.charCodeAt(0) < 0x20);
 }
 
 /** Drop glyphs painted twice at the same place (decks often draw text twice for "boldness"). */

@@ -46,7 +46,7 @@ export async function importDeck(
   } catch (error) {
     throw new BridgeError("DOCUMENT_INVALID", `Cannot read ${options.path}.`, { cause: error });
   }
-  let converted;
+  let converted: Awaited<ReturnType<typeof importPdf>>;
   try {
     converted = await importPdf(data, basename(options.path), {
       ...(options.pages === undefined ? {} : { pages: options.pages }),

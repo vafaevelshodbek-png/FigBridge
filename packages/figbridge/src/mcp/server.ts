@@ -61,7 +61,7 @@ export function createMcpServer(
           return {
             isError: true,
             content: [
-              { type: "text", text: `${error.code}: ${error.message}` + describeData(error.data) },
+              { type: "text", text: `${error.code}: ${error.message}${describeData(error.data)}` },
             ],
           };
         }
