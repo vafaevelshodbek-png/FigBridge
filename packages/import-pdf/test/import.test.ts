@@ -23,19 +23,20 @@ describe("importPdf", () => {
     expect(blobs.size).toBe(0);
     const [title] = scene.slides;
     expect(title?.width).toBe(1920);
-    const texts = flatten(title?.children ?? []).filter((n) => n.type === "text");
-    expect(texts.map((t) => (t.type === "text" ? t.characters : ""))).toContain(
-      "A modern beamer theme",
+    const texts = flatten(title?.children ?? []).flatMap((n) =>
+      n.type === "text" ? [n.characters] : [],
     );
+    expect(texts).toContain("A modern beamer theme");
   });
 
   it("extracts photos as image layers referencing returned blobs (NASA)", async () => {
     const { scene, blobs } = await importPdf(corpus("nasa_aiaa_template_2014.pdf"), "nasa.pdf", {
       pages: [1],
     });
-    const images = flatten(scene.slides[0]?.children ?? []).filter((n) => n.type === "image");
-    for (const image of images)
-      if (image.type === "image") expect(blobs.has(image.image.blob)).toBe(true);
+    const refs = flatten(scene.slides[0]?.children ?? []).flatMap((n) =>
+      n.type === "image" ? [n.image.blob] : [],
+    );
+    for (const ref of refs) expect(blobs.has(ref)).toBe(true);
     for (const blob of blobs.values())
       expect([...blob.bytes.slice(1, 4)]).toEqual([0x50, 0x4e, 0x47]); // "PNG"
   });
