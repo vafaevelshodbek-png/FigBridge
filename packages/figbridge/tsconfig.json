@@ -2,5 +2,5 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": ".", "outDir": ".tsbuild", "types": ["node"] },
   "include": ["src", "test", "package.json"],
-  "references": [{ "path": "../protocol" }, { "path": "../scene" }]
+  "references": [{ "path": "../protocol" }, { "path": "../scene" }, { "path": "../import-pdf" }]
 }

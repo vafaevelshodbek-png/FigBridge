@@ -14,6 +14,7 @@ import { METHODS, NodeIdSchema } from "@figbridge/protocol";
 import { SceneNodeSchema } from "@figbridge/scene";
 import { z } from "zod";
 import type { HubClient } from "../client.js";
+import { importDeck } from "../import-deck.js";
 
 export interface ToolAnnotations {
   readOnlyHint: boolean;
@@ -215,6 +216,42 @@ export const TOOLS: readonly ToolDefinition[] = [
       return [
         jsonText(meta),
         { type: "image", data: Buffer.from(bytes).toString("base64"), mimeType },
+      ];
+    },
+  }),
+
+  define({
+    name: "figma_import_deck",
+    title: "Import a PDF deck as editable slides",
+    description:
+      "Convert a PDF presentation or report into editable Figma frames (one per page): backgrounds as fills, cards as rounded rectangles, logos/icons as vectors, photos as image layers, text as editable paragraphs. Frames are laid out in a grid starting at (x, y) on the current page — pick a spot below existing content. Large decks take a while; pass `pages` to try a few first.",
+    input: z.object({
+      path: z.string().describe("Absolute path to a .pdf file on this computer."),
+      pages: z
+        .array(z.number().int().positive())
+        .optional()
+        .describe("1-based page numbers; default all."),
+      x: z.number().default(0),
+      y: z.number().default(0),
+      columns: z.number().int().min(1).max(20).default(6),
+      session: Session,
+    }),
+    annotations: WRITE,
+    run: async ({ path, pages, x, y, columns, session }, { client, signal, progress }) => {
+      if (!isAbsolute(path)) throw new Error("path must be absolute.");
+      return [
+        jsonText(
+          await importDeck(client, {
+            path,
+            pages,
+            x,
+            y,
+            columns,
+            session,
+            signal,
+            onProgress: progress,
+          }),
+        ),
       ];
     },
   }),

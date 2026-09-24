@@ -23,6 +23,7 @@
     "build": "tsdown"
   },
   "dependencies": {
+    "@figbridge/import-pdf": "workspace:*",
     "@figbridge/protocol": "workspace:*",
     "@figbridge/scene": "workspace:*",
     "@modelcontextprotocol/node": "catalog:",

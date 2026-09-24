@@ -256,6 +256,9 @@ importers:
 
   packages/figbridge:
     dependencies:
+      '@figbridge/import-pdf':
+        specifier: workspace:*
+        version: link:../import-pdf
       '@figbridge/protocol':
         specifier: workspace:*
         version: link:../protocol
