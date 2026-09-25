@@ -85,6 +85,8 @@ export class HubServer {
     });
     this.#http.on("upgrade", (req, socket, head) => {
       if (!this.#admit(req) || req.url !== "/plugin") {
+        if (req.url !== "/plugin")
+          this.#options.logger.warn({ url: req.url }, "websocket refused: unknown path");
         socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
         return;
       }
@@ -126,7 +128,14 @@ export class HubServer {
 
   #admit(req: IncomingMessage): boolean {
     const port = (this.#http.address() as AddressInfo | null)?.port ?? this.#options.port;
-    return isLoopbackHost(req.headers.host, port) && isAllowedOrigin(req.headers.origin);
+    const admitted = isLoopbackHost(req.headers.host, port) && isAllowedOrigin(req.headers.origin);
+    if (!admitted) {
+      this.#options.logger.warn(
+        { host: req.headers.host, origin: req.headers.origin, url: req.url },
+        "request refused: host or origin not allowed",
+      );
+    }
+    return admitted;
   }
 
   #authorized(req: IncomingMessage): boolean {
@@ -256,15 +265,18 @@ export class HubServer {
         clearTimeout(helloTimer);
         const hello = HelloSchema.safeParse(json);
         if (!hello.success) {
+          log.warn({ issues: hello.error.issues }, "plugin refused: malformed hello");
           ws.close(4003, "expected hello");
           return;
         }
         if (!tokensEqual(this.#options.token, hello.data.token)) {
+          log.warn("plugin refused: wrong pairing token (run `figbridge pair`)");
           ws.close(4401, "UNAUTHORIZED");
           return;
         }
         const protocol = negotiateProtocol(hello.data.protocols);
         if (protocol === undefined) {
+          log.warn({ offered: hello.data.protocols }, "plugin refused: no common protocol");
           ws.close(4426, "PROTOCOL_UNSUPPORTED");
           return;
         }
