@@ -123,9 +123,11 @@ describe("importPptx", () => {
     expect(names).toContain("r1c1");
   });
 
-  it("reports unsupported objects instead of failing", async () => {
-    const { warnings } = await importPptx(load("poi_SmartArt.pptx"), "smartart.pptx");
-    expect(warnings.join(" ")).toMatch(/not supported/);
+  it("imports SmartArt from its stored drawing", async () => {
+    const { scene, warnings } = await importPptx(load("poi_SmartArt.pptx"), "smartart.pptx");
+    expect(warnings).toEqual([]);
+    const shapes = JSON.stringify(scene).match(/"type":"rect"/g) ?? [];
+    expect(shapes.length).toBeGreaterThanOrEqual(5);
   });
 
   it("is deterministic and rejects missing slides", async () => {

@@ -297,3 +297,64 @@ describe("charts", () => {
     expect(warnings).toContainEqual(expect.stringContaining("radarChart"));
   });
 });
+
+describe("SmartArt and embedded objects", () => {
+  const frame = (data: string) =>
+    `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="7" name="Diagram 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>` +
+    `<p:xfrm><a:off x="914400" y="914400"/><a:ext cx="3657600" cy="1828800"/></p:xfrm><a:graphic>${data}</a:graphic></p:graphicFrame>`;
+
+  it("imports the diagram PowerPoint stored as shapes, placed within the frame", async () => {
+    const diagram = frame(
+      `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rData" r:lo="rLo" r:qs="rQs" r:cs="rCs"/></a:graphicData>`,
+    );
+    const { nodes } = await nodesOf(diagram, {
+      rels: `<Relationship Id="rData" Target="../diagrams/data1.xml"/><Relationship Id="rDrawing" Target="../diagrams/drawing1.xml"/>`,
+      parts: {
+        "ppt/diagrams/data1.xml": `<dgm:dataModel><dgm:extLst><a:ext><dsp:dataModelExt relId="rDrawing"/></a:ext></dgm:extLst></dgm:dataModel>`,
+        "ppt/diagrams/drawing1.xml":
+          `<dsp:drawing><dsp:spTree><dsp:nvGrpSpPr><dsp:cNvPr id="0" name=""/><dsp:cNvGrpSpPr/></dsp:nvGrpSpPr><dsp:grpSpPr/>` +
+          shape("Box", `<a:solidFill><a:srgbClr val="4472C4"/></a:solidFill>`, {
+            x: 0,
+            y: 0,
+            w: 914400,
+            h: 914400,
+            text: "Step 1",
+          }).replaceAll("p:", "dsp:") +
+          `</dsp:spTree></dsp:drawing>`,
+      },
+    });
+    const group = nodes.find((n) => n.name === "Diagram 1");
+    expect(group?.type).toBe("group");
+    const box = nodes.find((n) => n.type === "rect");
+    // The drawing's origin is the frame's top-left: 1 in from the slide's corner.
+    expect(box?.type === "rect" ? box.x : 0).toBeCloseTo(1920 / 13.333, 0);
+    expect(nodes.some((n) => n.type === "text" && n.characters === "Step 1")).toBe(true);
+  });
+
+  it("a diagram without a stored drawing is reported, not guessed", async () => {
+    const { nodes, warnings } = await nodesOf(
+      frame(
+        `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rNone"/></a:graphicData>`,
+      ),
+    );
+    expect(nodes).toHaveLength(0);
+    expect(warnings).toContainEqual(expect.stringContaining("diagram object skipped"));
+  });
+
+  it("an embedded object shows its preview picture", async () => {
+    const pic =
+      `<p:pic><p:nvPicPr><p:cNvPr id="8" name="Preview"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>` +
+      `<p:blipFill><a:blip r:embed="rImg"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="3657600" cy="1828800"/></a:xfrm><a:prstGeom prst="rect"/></p:spPr></p:pic>`;
+    const { nodes } = await nodesOf(
+      frame(
+        `<a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole"><p:oleObj progId="Excel.Sheet.12" r:id="rOle">${pic}</p:oleObj></a:graphicData>`,
+      ),
+      {
+        rels: `<Relationship Id="rImg" Target="../media/image1.png"/>`,
+        parts: { "ppt/media/image1.png": PNG },
+      },
+    );
+    expect(nodes.map((n) => n.type)).toEqual(["group", "image"]);
+  });
+});

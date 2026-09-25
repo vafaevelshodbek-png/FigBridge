@@ -288,8 +288,66 @@ function frameNodes(
   if (table !== undefined) return tableNodes(ctx, table, mapped, nameOf(el, "table"), options.part);
   const chart = child(data, "chart");
   if (chart !== undefined) return chartNodes(ctx, chart, mapped, nameOf(el, "chart"), options.part);
+  const uri = attr(data, "uri") ?? "";
+  if (data !== undefined && uri.endsWith("/diagram")) {
+    const nodes = diagramNodes(ctx, data, box, options, groups);
+    if (nodes !== undefined) return wrap(ctx, el, nodes, "SmartArt");
+  }
+  const ole = child(data, "oleObj");
+  if (ole !== undefined) {
+    // An embedded object (Excel sheet, equation…) keeps a preview picture; show that.
+    const preview = walkTree(ctx, ole, options, groups);
+    if (preview.length > 0) return wrap(ctx, el, preview, "object");
+  }
   ctx.warn(
-    `slide ${String(ctx.slideNumber)}: ${attr(data, "uri")?.split("/").pop() ?? "graphic"} object skipped (SmartArt/OLE are not supported)`,
+    `slide ${String(ctx.slideNumber)}: ${uri.split("/").pop() ?? "graphic"} object skipped (no stored drawing or preview to import)`,
   );
   return [];
+}
+
+function wrap(
+  ctx: SlideContext,
+  el: XmlElement,
+  children: SceneNode[],
+  fallback: string,
+): SceneNode[] {
+  if (children.length === 0) return [];
+  return [
+    {
+      id: ctx.nextId(),
+      name: nameOf(el, fallback),
+      type: "group",
+      opacity: 1,
+      visible: !isHidden(el),
+      children,
+    },
+  ];
+}
+
+/**
+ * SmartArt: PowerPoint stores the laid-out diagram as ordinary shapes in a drawing part
+ * (`dsp:drawing`, linked from the data part's `dataModelExt`). Its shapes are positioned
+ * relative to the graphic frame, so they are walked like a group spanning the frame.
+ * Undefined when the file has no stored drawing (then the diagram cannot be reproduced).
+ */
+function diagramNodes(
+  ctx: SlideContext,
+  data: XmlElement,
+  frame: Box,
+  options: WalkOptions,
+  groups: GroupFrame[],
+): SceneNode[] | undefined {
+  const rels = ctx.pkg.rels(options.part);
+  const dataPart = rels.internal.get(attr(child(data, "relIds"), "r:dm") ?? "");
+  const drawingId = attr(
+    find(dataPart === undefined ? undefined : ctx.pkg.xml(dataPart), "dataModelExt"),
+    "relId",
+  );
+  const drawingPart =
+    (drawingId === undefined ? undefined : rels.internal.get(drawingId)) ??
+    ctx.pkg.related(options.part, "diagrams/drawing");
+  const tree = find(drawingPart === undefined ? undefined : ctx.pkg.xml(drawingPart), "spTree");
+  if (drawingPart === undefined || tree === undefined) return undefined;
+  const space: GroupFrame = { ...frame, chX: 0, chY: 0, chW: frame.w, chH: frame.h };
+  return walkTree(ctx, tree, { ...options, part: drawingPart }, [...groups, space]);
 }
