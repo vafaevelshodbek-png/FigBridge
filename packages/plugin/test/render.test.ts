@@ -161,6 +161,56 @@ describe("the fake enforces Figma's limits", () => {
     expect(warnings).toEqual([expect.stringContaining("invalid path data")]);
   });
 
+  it.each([
+    ["unrotated", 0, false],
+    ["rotated", 30, false],
+    ["flipped", 0, true],
+  ])("puts every vector vertex where the Scene says (%s)", async (_, rotation, flipX) => {
+    // A slice-like path whose bounds do not start at the box origin (as pie sectors do).
+    const d = "M 60 40 L 100 40 L 100 90 Z";
+    const node: SceneNode = {
+      ...base,
+      x: 200,
+      y: 100,
+      w: 120,
+      h: 100,
+      rotation,
+      flipX,
+      id: "v",
+      name: "v",
+      type: "vector",
+      paths: [{ d, fillRule: "nonzero" }],
+      fills: [{ type: "solid", color: "#000000", opacity: 1 }],
+      strokes: [],
+    };
+    const { frames } = await render(fake, [slide([node])], new Map());
+    const vector = frames[0]?.children[0];
+    expect(vector).toBeDefined();
+    if (vector === undefined) return;
+    // Scene: local (px, py) → parent via rotation/flip about the box centre.
+    const scene = (px: number, py: number): [number, number] => {
+      const r = (rotation * Math.PI) / 180;
+      const lx = (flipX ? node.w - px : px) - node.w / 2;
+      const ly = py - node.h / 2;
+      return [
+        node.x + node.w / 2 + lx * Math.cos(r) - ly * Math.sin(r),
+        node.y + node.h / 2 + lx * Math.sin(r) + ly * Math.cos(r),
+      ];
+    };
+    const expected = [scene(60, 40), scene(100, 40), scene(100, 90)];
+    const figmaData = (vector.vectorPaths[0]?.data ?? "")
+      .split(" ")
+      .filter((t) => !/[A-Z]/.test(t))
+      .map(Number);
+    const actual = [0, 2, 4].map((i) =>
+      vector.toParent(figmaData[i] ?? NaN, figmaData[i + 1] ?? NaN),
+    );
+    for (const [i, [x, y]] of actual.entries()) {
+      expect(x).toBeCloseTo(expected[i]?.[0] ?? NaN, 2);
+      expect(y).toBeCloseTo(expected[i]?.[1] ?? NaN, 2);
+    }
+  });
+
   it("requires fonts to be loaded before text is written", () => {
     const text = fake.createText();
     expect(() => {

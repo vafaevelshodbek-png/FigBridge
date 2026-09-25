@@ -129,3 +129,98 @@ export function ellipseArcCubics(
   }
   return out.join(" ");
 }
+
+export interface PathBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Parameters in (0, 1) where a Bézier's derivative along one axis is zero. */
+function extrema(p0: number, p1: number, p2: number, p3?: number): number[] {
+  if (p3 === undefined) {
+    // Quadratic: B'(t) = 2[(p1 - p0) + t(p0 - 2p1 + p2)].
+    const den = p0 - 2 * p1 + p2;
+    return den === 0 ? [] : [(p0 - p1) / den];
+  }
+  // Cubic: B'(t) = 3[a t² + b t + c].
+  const a = -p0 + 3 * p1 - 3 * p2 + p3;
+  const b = 2 * (p0 - 2 * p1 + p2);
+  const c = p1 - p0;
+  if (Math.abs(a) < 1e-12) return b === 0 ? [] : [-c / b];
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return [];
+  const root = Math.sqrt(disc);
+  return [(-b + root) / (2 * a), (-b - root) / (2 * a)];
+}
+
+function bezier(t: number, p: readonly number[]): number {
+  const u = 1 - t;
+  return p.length === 3
+    ? u * u * (p[0] ?? 0) + 2 * u * t * (p[1] ?? 0) + t * t * (p[2] ?? 0)
+    : u ** 3 * (p[0] ?? 0) +
+        3 * u * u * t * (p[1] ?? 0) +
+        3 * u * t * t * (p[2] ?? 0) +
+        t ** 3 * (p[3] ?? 0);
+}
+
+/**
+ * Exact bounds of path data in Figma's subset — the box Figma normalises a vector to when
+ * `vectorPaths` is set (curves count by their extent, not their control points).
+ * Returns undefined for data without points.
+ */
+export function pathBounds(d: string): PathBounds | undefined {
+  const tokens = d.split(" ");
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const add = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  let cx = 0;
+  let cy = 0;
+  let start: [number, number] = [0, 0];
+  for (let i = 0; i < tokens.length; ) {
+    const command = tokens[i++];
+    const read = (n: number) => {
+      const values = tokens.slice(i, i + n).map(Number);
+      i += n;
+      return values;
+    };
+    if (command === "M" || command === "L") {
+      const [x = 0, y = 0] = read(2);
+      add(x, y);
+      [cx, cy] = [x, y];
+      if (command === "M") start = [x, y];
+    } else if (command === "Q" || command === "C") {
+      const values = read(command === "Q" ? 4 : 6);
+      const xs = [cx, ...values.filter((_, k) => k % 2 === 0)];
+      const ys = [cy, ...values.filter((_, k) => k % 2 === 1)];
+      const ex = xs[xs.length - 1] ?? cx;
+      const ey = ys[ys.length - 1] ?? cy;
+      add(ex, ey);
+      for (const [axis, other] of [
+        [xs, ys],
+        [ys, xs],
+      ] as const) {
+        for (const t of extrema(axis[0] ?? 0, axis[1] ?? 0, axis[2] ?? 0, axis[3])) {
+          if (t > 0 && t < 1) {
+            const a = bezier(t, axis);
+            const b = bezier(t, other);
+            if (axis === xs) add(a, b);
+            else add(b, a);
+          }
+        }
+      }
+      [cx, cy] = [ex, ey];
+    } else if (command === "Z") {
+      [cx, cy] = start;
+    }
+  }
+  return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : undefined;
+}

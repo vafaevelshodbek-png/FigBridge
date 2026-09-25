@@ -9,8 +9,15 @@
  *    cancellation) between tasks, and long synchronous loops freeze the UI.
  */
 import type { SceneNode as SceneNodeIR, Slide } from "@figbridge/scene";
+import { pathBounds } from "@figbridge/scene/path";
 import type { FontLoader } from "./fonts.js";
-import { needsMatrix, type Placement, placementTransform, safeSize } from "./geometry.js";
+import {
+  needsMatrix,
+  type Placement,
+  placementTransform,
+  safeSize,
+  translateLocal,
+} from "./geometry.js";
 import { applyStrokes, type ImageResolver, toFigmaPaints } from "./paints.js";
 import { writeText } from "./text.js";
 
@@ -151,7 +158,10 @@ export class SceneRenderer {
         }));
         vector.fills = await toFigmaPaints(node.fills, images);
         await applyStrokes(vector, node.strokes, images);
-        place(vector, { ...node, w: vector.width, h: vector.height });
+        // Figma moves path data so its bounds start at the node's origin: shift the node by
+        // the same amount, in local coordinates so rotation still pivots on the Scene box.
+        const offset = vectorOffset(node.paths);
+        vector.relativeTransform = translateLocal(placementTransform(node), offset.x, offset.y);
         return vector;
       }
       case "text": {
@@ -172,6 +182,19 @@ function place(node: SceneNode & LayoutMixin, p: Placement): void {
     node.x = p.x;
     node.y = p.y;
   }
+}
+
+/** Top-left of the union of the paths' bounds, where Figma will put the node's origin. */
+function vectorOffset(paths: readonly { d: string }[]): { x: number; y: number } {
+  let x = Infinity;
+  let y = Infinity;
+  for (const path of paths) {
+    const bounds = pathBounds(path.d);
+    if (bounds === undefined) continue;
+    x = Math.min(x, bounds.minX);
+    y = Math.min(y, bounds.minY);
+  }
+  return Number.isFinite(x) ? { x, y } : { x: 0, y: 0 };
 }
 
 function setRadii(rect: RectangleNode, radii: readonly [number, number, number, number]): void {

@@ -41,6 +41,15 @@ export function placementTransform(p: Placement): Affine {
   ];
 }
 
+/** `m` applied after moving the local origin to (dx, dy): m · translate(dx, dy). */
+export function translateLocal(m: Affine, dx: number, dy: number): Affine {
+  const [[a, c, tx], [b, d, ty]] = m;
+  return [
+    [a, c, tx + a * dx + c * dy],
+    [b, d, ty + b * dx + d * dy],
+  ];
+}
+
 /** True when the placement needs a matrix (rotation or flip) rather than plain x/y. */
 export function needsMatrix(p: Placement): boolean {
   return p.rotation % 360 !== 0 || p.flipX || p.flipY;

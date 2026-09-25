@@ -4,7 +4,15 @@ import { build } from "esbuild";
 
 const pkg = JSON.parse(await readFile(new URL("./package.json", import.meta.url), "utf8"));
 const define = { __PLUGIN_VERSION__: JSON.stringify(pkg.version), __HUB_PORT__: "7331" };
-const common = { bundle: true, minify: true, legalComments: "none", define, logLevel: "warning" };
+// Bundle workspace packages from their TypeScript sources (no dependency on their builds).
+const common = {
+  bundle: true,
+  minify: true,
+  legalComments: "none",
+  define,
+  logLevel: "warning",
+  conditions: ["@figbridge/source"],
+};
 
 await mkdir("dist", { recursive: true });
 // The Figma sandbox is ES2017-level; esbuild lowers newer syntax (classes with # fields, ??, ?.).

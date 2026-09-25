@@ -10,9 +10,11 @@
  *  - paints: colour channels and opacity in 0..1, 2×3 finite transforms, stops in 0..1,
  *    image paints must reference an uploaded image, no unknown keys;
  *  - text: the node's font, and every font given to setRangeFontName, must be loaded first;
- *  - numbers are finite everywhere (NaN and Infinity are rejected).
+ *  - numbers are finite everywhere (NaN and Infinity are rejected);
+ *  - setting vectorPaths moves the data so its bounds start at (0, 0) and resizes the node
+ *    to those bounds (the pie charts of the first live test landed stacked in a corner).
  */
-import { isFigmaPath } from "@figbridge/scene";
+import { isFigmaPath, pathBounds } from "@figbridge/scene";
 
 export class FigmaError extends Error {}
 
@@ -278,10 +280,22 @@ export class FakeNode {
     this.#opacity = unit(value, "opacity");
   }
 
+  #matrix: [[number, number, number], [number, number, number]] | undefined;
+
   set relativeTransform(m: [[number, number, number], [number, number, number]]) {
     transform(m, "relativeTransform");
+    this.#matrix = m;
     this.#x = m[0][2];
     this.#y = m[1][2];
+  }
+
+  /** A local point of this node in its parent's coordinates. */
+  toParent(x: number, y: number): [number, number] {
+    const m = this.#matrix ?? [
+      [1, 0, this.#x],
+      [0, 1, this.#y],
+    ];
+    return [m[0][0] * x + m[0][1] * y + m[0][2], m[1][0] * x + m[1][1] * y + m[1][2]];
   }
 
   get fills(): readonly unknown[] {
@@ -345,7 +359,40 @@ export class FakeNode {
       if (!isFigmaPath(path.data))
         fail(`Failed to set vectorPaths: invalid path data "${path.data.slice(0, 60)}"`);
     }
-    this.#vectorPaths = paths;
+    // Figma normalises the geometry: data moves so its bounds start at the origin.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const path of paths) {
+      const b = pathBounds(path.data);
+      if (b === undefined) continue;
+      minX = Math.min(minX, b.minX);
+      minY = Math.min(minY, b.minY);
+      maxX = Math.max(maxX, b.maxX);
+      maxY = Math.max(maxY, b.maxY);
+    }
+    if (!Number.isFinite(minX)) {
+      this.#vectorPaths = paths;
+      return;
+    }
+    const shift = (data: string) => {
+      const tokens = data.split(" ");
+      let axis = 0;
+      return tokens
+        .map((token) => {
+          if (/^[A-Z]$/.test(token)) {
+            axis = 0;
+            return token;
+          }
+          const value = Number(token) - (axis++ % 2 === 0 ? minX : minY);
+          return String(Math.round(value * 1000) / 1000);
+        })
+        .join(" ");
+    };
+    this.#vectorPaths = paths.map((path) => ({ ...path, data: shift(path.data) }));
+    this.#width = Math.max(maxX - minX, 0.01);
+    this.#height = Math.max(maxY - minY, 0.01);
   }
 
   // ── text ────────────────────────────────────────────────────────────────────

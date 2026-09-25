@@ -14,13 +14,18 @@
       "@figbridge/source": "./src/render.ts",
       "types": "./dist/render.d.mts",
       "import": "./dist/render.mjs"
+    },
+    "./path": {
+      "@figbridge/source": "./src/path.ts",
+      "types": "./dist/path.d.mts",
+      "import": "./dist/path.mjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts src/render.ts --format esm --dts --clean"
+    "build": "tsdown src/index.ts src/render.ts src/path.ts --format esm --dts --clean"
   },
   "dependencies": {
     "zod": "catalog:",
