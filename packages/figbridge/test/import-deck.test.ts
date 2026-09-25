@@ -15,6 +15,8 @@ let server: HubServer;
 let plugin: FakePlugin;
 let client: LocalHubClient;
 const rendered: { slide: { name: string }; x: number; y: number }[] = [];
+/** Index of the scene.render call the fake plugin fails, if any. */
+let failAt: number | undefined;
 
 beforeEach(async () => {
   const hub = new Hub();
@@ -30,12 +32,15 @@ beforeEach(async () => {
   const port = await server.listen();
   client = new LocalHubClient(hub, blobs);
   rendered.length = 0;
+  failAt = undefined;
+  let calls = 0;
   let frame = 100;
   plugin = new FakePlugin({
     port,
     token: TOKEN,
     handlers: {
       "scene.render": (params) => {
+        if (calls++ === failAt) throw new Error("the plugin window was closed");
         rendered.push(params as (typeof rendered)[number]);
         return { frameId: `1:${String(++frame)}`, created: 10, warnings: [] };
       },
@@ -67,6 +72,29 @@ describe("importDeck", () => {
     expect(third?.[0]).toBe(100); // wraps to the next row
     expect(third?.[1]).toBeGreaterThan(2000);
     expect(progress).toEqual([1, 2, 3]);
+  });
+
+  it("keys each slide per import, so importing the same file again renders again", async () => {
+    await importDeck(client, { path: DECK, pages: [1] });
+    await importDeck(client, { path: DECK, pages: [1] });
+    const keys = plugin.received.flatMap((m) =>
+      m.type === "req" && m.method === "scene.render" ? [m.idempotencyKey] : [],
+    );
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeDefined();
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it("reports the frames already imported when a slide fails", async () => {
+    failAt = 1; // the second slide
+    const error = await importDeck(client, { path: DECK, pages: [1, 2, 3] }).catch(
+      (e: unknown) => e,
+    );
+    expect(error).toMatchObject({
+      message: expect.stringContaining("1 of 3 slides were imported") as string,
+      data: { frames: [{ page: "01", frameId: "1:101" }], failedPage: "02" },
+    });
+    expect(rendered).toHaveLength(1);
   });
 
   it("rejects unsupported files with a clear error", async () => {
