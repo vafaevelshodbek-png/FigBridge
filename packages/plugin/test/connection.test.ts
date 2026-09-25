@@ -29,7 +29,11 @@ async function startHub(port = 0): Promise<number> {
   return server.listen();
 }
 
-function connect(port: number, token = TOKEN, onMessage = (_: unknown) => undefined) {
+function connect(
+  port: number,
+  token = TOKEN,
+  onMessage: (message: unknown) => void = () => undefined,
+) {
   const states: ConnectionState[] = [];
   const connection = new Connection({
     url: `ws://127.0.0.1:${String(port)}/plugin`,
