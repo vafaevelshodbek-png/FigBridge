@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
  *   figbridge start          run the hub in the foreground (no AI client needed)
  *   figbridge plugin         where the Figma plugin is and how to install it
  *   figbridge pair           print the pairing token for the Figma plugin
+ *   figbridge doctor         check the whole setup and say what to fix
  *   figbridge status         show whether the hub runs and which files are connected
  *   figbridge call <method>  call a plugin method with JSON params (scripts, debugging)
  *   figbridge export <node>  export a node to a file
@@ -20,6 +21,7 @@ import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
 import { Command, Option } from "commander";
 import { RemoteHubClient } from "./client.js";
 import { hubPort, loadOrCreateToken, pairingCode, stateDir } from "./config.js";
+import { formatChecks, runDoctor } from "./doctor.js";
 import { importDeck } from "./import-deck.js";
 import { serveMcp } from "./mcp/server.js";
 import { startRuntime } from "./runtime.js";
@@ -118,6 +120,19 @@ program
       `Paste this token into the figbridge plugin (Plugins → Development → figbridge).\n` +
         `Stored in ${stateDir()}; keep it private — it grants edit access to open Figma files.\n`,
     );
+  });
+
+program
+  .command("doctor")
+  .description("Check the setup (Node, token, plugin, hub, connected files) and say what to fix")
+  .action(async () => {
+    const checks = await runDoctor({
+      port: hubPort(),
+      stateDir: stateDir(),
+      token: () => loadOrCreateToken(),
+    });
+    out(formatChecks(checks));
+    if (!checks.every((check) => check.ok)) process.exitCode = 1;
   });
 
 program

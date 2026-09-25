@@ -45,7 +45,7 @@ The importers are tested against real decks with golden images on every change; 
 | `figma_create`, `figma_update`, `figma_clone`, `figma_delete` | Edit layers |
 | `figma_import_deck` | PDF or PPTX → editable slide frames |
 
-The same operations are available from the CLI: `figbridge status | call | export | import`.
+The same operations are available from the CLI: `figbridge status | call | export | import`. If something does not connect, `figbridge doctor` checks the whole setup and says what to fix.
 
 ## How it works
 
