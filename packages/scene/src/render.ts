@@ -211,6 +211,104 @@ function fontFor(run: TextRun): string {
   return `${italic}${weight} ${String(run.fontSize)}px "${run.fontFamily}", Inter, Arial, sans-serif`;
 }
 
+interface Piece {
+  text: string;
+  run: TextRun;
+  width: number;
+}
+
+interface Line {
+  pieces: Piece[];
+  /** Left inset for list items. */
+  indent: number;
+  /** List marker drawn in the indent on a paragraph's first line. */
+  marker: string | undefined;
+  /** Extra space above the line (paragraph spacing). */
+  gap: number;
+}
+
+/**
+ * Lays text out into visual lines: hard breaks split paragraphs, and unless the node grows
+ * horizontally (`sizing: "width"`) words wrap greedily at the node width, as in Figma.
+ * List items are inset and get a bullet or number, as Figma draws them.
+ */
+function layoutLines(
+  ctx: SKRSContext2D,
+  node: Extract<SceneNode, { type: "text" }>,
+  firstRun: TextRun,
+): Line[] {
+  const wrap = node.sizing !== "width";
+  const measure = (text: string, run: TextRun) => {
+    ctx.font = fontFor(run);
+    return ctx.measureText(text).width;
+  };
+  const lines: Line[] = [];
+  let offset = 0;
+  let ordinal = 0;
+  let previousAfter = 0;
+  let previousParagraph: (typeof node.paragraphs)[number] | undefined;
+  const hardLines = node.characters.split(/\n|\u2028/);
+  for (const hard of hardLines) {
+    const lineStart = offset;
+    const lineEnd = offset + hard.length;
+    const breakChar = node.characters[lineEnd];
+    offset = lineEnd + 1;
+    const paragraph = node.paragraphs.find(
+      (p) => p.start <= lineStart && lineStart < Math.max(p.end, p.start + 1),
+    );
+    const startsParagraph = paragraph !== previousParagraph || paragraph === undefined;
+    previousParagraph = paragraph;
+    const list = paragraph?.list ?? "none";
+    const size =
+      node.runs.find((r) => r.start <= lineStart && lineStart < r.end)?.fontSize ??
+      firstRun.fontSize;
+    const indent = list === "none" ? 0 : size * LIST_INDENT * ((paragraph?.indentLevel ?? 0) + 1);
+    ordinal = list === "ordered" ? (startsParagraph ? ordinal + 1 : ordinal) : 0;
+    const marker =
+      !startsParagraph || list === "none"
+        ? undefined
+        : list === "bullet"
+          ? "•"
+          : `${String(ordinal)}.`;
+    const gap =
+      startsParagraph && lines.length > 0 ? previousAfter + (paragraph?.spaceBefore ?? 0) : 0;
+    if (startsParagraph) previousAfter = 0;
+    // Words (with their trailing spaces), split further at run boundaries.
+    const tokens: Piece[] = [];
+    let cursor = lineStart;
+    while (cursor < lineEnd) {
+      const run = node.runs.find((r) => r.start <= cursor && cursor < r.end) ?? firstRun;
+      const runEnd = Math.min(lineEnd, Math.max(run.end, cursor + 1));
+      for (const word of node.characters.slice(cursor, runEnd).match(/\S+\s*|\s+/g) ?? []) {
+        tokens.push({ text: word, run, width: measure(word, run) });
+      }
+      cursor = runEnd;
+    }
+    const available = node.w - indent;
+    let line: Line = { pieces: [], indent, marker, gap };
+    let width = 0;
+    for (const token of tokens) {
+      const ink = measure(token.text.trimEnd(), token.run);
+      // Tokens without a leading space continue the previous word across a run boundary.
+      const previous = line.pieces[line.pieces.length - 1];
+      const joinsWord = previous !== undefined && !/\s$/.test(previous.text);
+      if (wrap && previous !== undefined && !joinsWord && width + ink > available + 0.5) {
+        lines.push(line);
+        line = { pieces: [], indent, marker: undefined, gap: 0 };
+        width = 0;
+      }
+      line.pieces.push(token);
+      width += token.width;
+    }
+    lines.push(line);
+    if (breakChar !== "\u2028") previousAfter = paragraph?.spaceAfter ?? 0;
+  }
+  return lines;
+}
+
+/** Figma's list inset per level, as a multiple of the font size. */
+const LIST_INDENT = 1.5;
+
 /** Draws text run by run so colours, weights and sizes within a line are preserved. */
 function drawText(ctx: SKRSContext2D, node: Extract<SceneNode, { type: "text" }>): void {
   const firstRun = node.runs[0];
@@ -223,39 +321,46 @@ function drawText(ctx: SKRSContext2D, node: Extract<SceneNode, { type: "text" }>
         ? (paragraph.lineHeight.value / 100) * firstRun.fontSize
         : firstRun.fontSize * 1.21;
   ctx.textBaseline = "alphabetic";
-  let offset = 0;
-  node.characters.split(/\n|\u2028/).forEach((line, index) => {
-    const lineStart = offset;
-    const lineEnd = offset + line.length;
-    // Split the line into pieces by run boundaries.
-    const pieces: { text: string; run: TextRun }[] = [];
-    let cursor = lineStart;
-    while (cursor < lineEnd) {
-      const run = node.runs.find((r) => r.start <= cursor && cursor < r.end) ?? firstRun;
-      const end = Math.min(lineEnd, Math.max(run.end, cursor + 1));
-      pieces.push({ text: node.characters.slice(cursor, end), run });
-      cursor = end;
-    }
-    const widths = pieces.map((piece) => {
-      ctx.font = fontFor(piece.run);
-      return ctx.measureText(piece.text).width;
-    });
-    const total = widths.reduce((sum, w) => sum + w, 0);
+  const lines = layoutLines(ctx, node, firstRun);
+  const block = lines.reduce((sum, line) => sum + line.gap + lineHeight, 0);
+  const top =
+    node.sizing === "fixed" && node.verticalAlign === "center"
+      ? (node.h - block) / 2
+      : node.sizing === "fixed" && node.verticalAlign === "bottom"
+        ? node.h - block
+        : 0;
+  let y = top;
+  for (const line of lines) {
+    y += line.gap;
+    const { pieces } = line;
+    // Trailing spaces do not count towards alignment.
+    const last = pieces[pieces.length - 1];
+    if (last !== undefined) ctx.font = fontFor(last.run);
+    const trailing =
+      last === undefined ? 0 : last.width - ctx.measureText(last.text.trimEnd()).width;
+    const total = pieces.reduce((sum, p) => sum + p.width, 0) - trailing;
+    const room = node.w - line.indent;
     let x =
-      node.align === "center" ? (node.w - total) / 2 : node.align === "right" ? node.w - total : 0;
+      line.indent +
+      (node.align === "center" ? (room - total) / 2 : node.align === "right" ? room - total : 0);
     const size = Math.max(...pieces.map((p) => p.run.fontSize), firstRun.fontSize);
-    const baseline = (lineHeight - size * 1.21) / 2 + size * 0.97 + index * lineHeight;
-    pieces.forEach((piece, i) => {
+    const baseline = y + (lineHeight - size * 1.21) / 2 + size * 0.97;
+    const markerRun = pieces[0]?.run ?? firstRun;
+    const paint = (run: TextRun) =>
+      run.fill.type === "solid" ? rgba(run.fill.color, run.fill.opacity) : "#000000";
+    if (line.marker !== undefined) {
+      ctx.font = fontFor(markerRun);
+      ctx.fillStyle = paint(markerRun);
+      ctx.fillText(line.marker, line.indent - markerRun.fontSize * LIST_INDENT * 0.75, baseline);
+    }
+    for (const piece of pieces) {
       ctx.font = fontFor(piece.run);
-      ctx.fillStyle =
-        piece.run.fill.type === "solid"
-          ? rgba(piece.run.fill.color, piece.run.fill.opacity)
-          : "#000000";
+      ctx.fillStyle = paint(piece.run);
       ctx.fillText(piece.text, x, baseline);
-      x += widths[i] ?? 0;
-    });
-    offset = lineEnd + 1;
-  });
+      x += piece.width;
+    }
+    y += lineHeight;
+  }
 }
 
 function roundedRect(box: Rect, radii: readonly [number, number, number, number]): Path2D {
