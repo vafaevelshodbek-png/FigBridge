@@ -70,7 +70,11 @@ export class Connection {
     this.#socket = socket;
     let welcomed = false;
     const handshake = setTimeout(() => {
+      // Do not wait for a close event: a socket stuck mid-connect may never send one
+      // (Node's WebSocket does not, browsers do). Forget it and retry.
+      this.#socket = undefined;
       socket.close();
+      this.#retry();
     }, this.options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS);
 
     socket.onopen = () => {
@@ -103,12 +107,16 @@ export class Connection {
         });
         return;
       }
-      if (this.#stopped) return;
-      const retryInMs = backoffDelay(this.#attempt++);
-      this.options.onState({ status: "waiting", retryInMs });
-      this.#timer = setTimeout(() => {
-        this.#open();
-      }, retryInMs);
+      this.#retry();
     };
+  }
+
+  #retry(): void {
+    if (this.#stopped) return;
+    const retryInMs = backoffDelay(this.#attempt++);
+    this.options.onState({ status: "waiting", retryInMs });
+    this.#timer = setTimeout(() => {
+      this.#open();
+    }, retryInMs);
   }
 }
