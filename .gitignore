@@ -18,3 +18,5 @@ corpus-local/
 out/
 .tsbuild/
 test-output/
+packages/figbridge/README.md
+*.tgz

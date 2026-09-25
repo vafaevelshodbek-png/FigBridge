@@ -2,7 +2,28 @@
   "name": "figbridge",
   "version": "0.0.0",
   "description": "Let AI agents read and write Figma, and turn PDF/PPTX decks into editable Figma layers.",
+  "keywords": [
+    "figma",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "pptx",
+    "pdf",
+    "import",
+    "figma-plugin"
+  ],
+  "homepage": "https://github.com/vafaevelshodbek-png/figma-bridge#readme",
+  "bugs": "https://github.com/vafaevelshodbek-png/figma-bridge/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vafaevelshodbek-png/figma-bridge.git",
+    "directory": "packages/figbridge"
+  },
   "license": "MIT",
+  "author": "Vafaev Elshodbek (https://github.com/vafaevelshodbek-png)",
+  "contributors": [
+    "strevesuksess (https://github.com/strevesuksess)"
+  ],
   "type": "module",
   "bin": {
     "figbridge": "./dist/cli.mjs"
@@ -14,19 +35,19 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsdown"
+    "build": "tsdown && node scripts/bundle-plugin.mjs",
+    "prepack": "node -e \"require('node:fs').copyFileSync('../../README.md','README.md')\"",
+    "postpack": "node -e \"require('node:fs').rmSync('README.md',{force:true})\"",
+    "smoke": "node scripts/smoke-install.mjs"
   },
   "dependencies": {
-    "@figbridge/import-pdf": "workspace:*",
-    "@figbridge/import-pptx": "workspace:*",
-    "@figbridge/protocol": "workspace:*",
-    "@figbridge/scene": "workspace:*",
     "@modelcontextprotocol/node": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
     "@napi-rs/canvas": "catalog:",
@@ -40,6 +61,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@figbridge/import-pdf": "workspace:*",
+    "@figbridge/import-pptx": "workspace:*",
+    "@figbridge/protocol": "workspace:*",
+    "@figbridge/scene": "workspace:*",
     "@modelcontextprotocol/client": "catalog:",
     "@types/ws": "catalog:",
     "tsdown": "catalog:"

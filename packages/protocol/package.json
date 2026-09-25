@@ -1,6 +1,7 @@
 {
   "name": "@figbridge/protocol",
   "version": "0.0.0",
+  "private": true,
   "description": "Wire protocol between the figbridge hub and the Figma plugin: envelopes, methods, errors.",
   "license": "MIT",
   "type": "module",

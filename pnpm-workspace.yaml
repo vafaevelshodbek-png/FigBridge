@@ -30,6 +30,8 @@ catalog:
   "@modelcontextprotocol/node": ^2.1.0
   "@modelcontextprotocol/client": ^2.1.0
   "@figma/plugin-typings": ^1.139.0
+  "@changesets/cli": ^3.0.3
+  "@changesets/changelog-github": ^1.0.1
 
 minimumReleaseAgeExclude:
   - '@figma/plugin-typings@1.139.0'

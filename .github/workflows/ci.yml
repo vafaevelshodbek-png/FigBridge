@@ -32,6 +32,8 @@ jobs:
       # One job measures coverage and enforces the floor in vitest.config.ts.
       - run: pnpm test:coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+      # Pack, install with plain npm into an empty directory, run the CLI and the MCP server.
+      - run: pnpm -F figbridge smoke
       - name: Upload golden diffs
         if: failure()
         uses: actions/upload-artifact@v4

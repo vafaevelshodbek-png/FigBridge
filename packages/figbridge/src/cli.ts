@@ -1,9 +1,11 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 /**
  * figbridge command-line interface.
  *
  *   figbridge mcp            MCP server on stdio (what AI clients launch)
  *   figbridge start          run the hub in the foreground (no AI client needed)
+ *   figbridge plugin         where the Figma plugin is and how to install it
  *   figbridge pair           print the pairing token for the Figma plugin
  *   figbridge status         show whether the hub runs and which files are connected
  *   figbridge call <method>  call a plugin method with JSON params (scripts, debugging)
@@ -13,6 +15,7 @@
  */
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
 import { Command, Option } from "commander";
 import { RemoteHubClient } from "./client.js";
@@ -88,6 +91,21 @@ program
     );
     await untilShutdown({ watchStdin: false });
     await runtime.close();
+  });
+
+program
+  .command("plugin")
+  .description("Show where the bundled Figma plugin is and how to install it")
+  .action(() => {
+    // dist/cli.mjs → dist/plugin/manifest.json (see scripts/bundle-plugin.mjs).
+    const manifest = fileURLToPath(new URL("./plugin/manifest.json", import.meta.url));
+    if (!existsSync(manifest))
+      throw new BridgeError("INTERNAL", `Plugin not found at ${manifest}.`);
+    out(manifest);
+    process.stderr.write(
+      "In Figma Desktop: Plugins → Development → Import plugin from manifest… and pick the file above.\n" +
+        "Then run `figbridge start` (or let your AI client start `figbridge mcp`) and `figbridge pair`.\n",
+    );
   });
 
 program
