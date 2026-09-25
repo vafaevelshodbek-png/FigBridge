@@ -7,8 +7,7 @@
   "editorType": ["figma", "slides"],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["none"],
-    "devAllowedDomains": ["http://127.0.0.1:7331", "ws://127.0.0.1:7331"],
+    "allowedDomains": ["http://localhost:7331", "ws://localhost:7331"],
     "reasoning": "Connects to the figbridge hub running on this computer (localhost only)."
   }
 }

@@ -8,7 +8,7 @@ import { Connection, type ConnectionState } from "./connection.js";
 
 declare const __HUB_PORT__: number;
 
-const HUB = `127.0.0.1:${__HUB_PORT__}`;
+const HUB = `localhost:${__HUB_PORT__}`;
 const HTTP = `http://${HUB}`;
 
 /**
