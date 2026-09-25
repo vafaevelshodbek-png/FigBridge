@@ -3,6 +3,8 @@
  * refusal without retry, reconnection with backoff after the hub restarts, and stop().
  * Node's built-in WebSocket is the same WHATWG API the plugin iframe uses.
  */
+
+import { createServer } from "node:net";
 import { BlobStore, Hub, HubServer } from "figbridge";
 import { pino } from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -138,5 +140,39 @@ describe("Connection", () => {
         data: { id: "x", done: 1 },
       } as never),
     ).toBe(false);
+  });
+
+  it("gives up on a connection that never completes its handshake, and retries", async () => {
+    // Accepts TCP and then says nothing, like a hub caught mid-shutdown.
+    const silent = createServer(() => undefined);
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const address = silent.address();
+    const port = typeof address === "object" && address !== null ? address.port : 0;
+    const states: ConnectionState[] = [];
+    const connection = new Connection({
+      url: `ws://127.0.0.1:${String(port)}/plugin`,
+      hello: () => ({
+        v: 1,
+        type: "hello",
+        token: TOKEN,
+        protocols: [1],
+        plugin: { version: "test" },
+        file: { name: "Deck", editorType: "figma" },
+        instance: "instance-silent-test",
+      }),
+      onMessage: () => undefined,
+      onState: (state) => states.push(state),
+      handshakeTimeoutMs: 300,
+    });
+    connections.push(connection);
+    connection.start();
+    try {
+      await vi.waitFor(() => {
+        expect(states.some((state) => state.status === "waiting")).toBe(true);
+      });
+    } finally {
+      connection.stop();
+      silent.close();
+    }
   });
 });

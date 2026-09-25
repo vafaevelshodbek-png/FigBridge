@@ -15,6 +15,8 @@ export interface ConnectionOptions {
   hello: () => Hello;
   onMessage: (message: Message) => void;
   onState: (state: ConnectionState) => void;
+  /** Defaults to {@link HANDSHAKE_TIMEOUT_MS}. */
+  handshakeTimeoutMs?: number;
 }
 
 /** Full-jitter exponential backoff: random in [0, min(cap, base·2^attempt)]. */
@@ -26,6 +28,12 @@ export function backoffDelay(
 ): number {
   return Math.round(random() * Math.min(capMs, baseMs * 2 ** attempt));
 }
+
+/**
+ * A connection that is not welcomed within this time is dropped and retried: a socket can
+ * hang half-open, e.g. when it reached a hub that was shutting down.
+ */
+export const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 /** Close codes the hub uses for refusals that retrying will not fix. */
 const CLOSE_UNAUTHORIZED = 4401;
@@ -61,6 +69,9 @@ export class Connection {
     const socket = new WebSocket(this.options.url);
     this.#socket = socket;
     let welcomed = false;
+    const handshake = setTimeout(() => {
+      socket.close();
+    }, this.options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS);
 
     socket.onopen = () => {
       socket.send(JSON.stringify(this.options.hello()));
@@ -70,6 +81,7 @@ export class Connection {
       if (!welcomed) {
         if (data.type === "welcome") {
           welcomed = true;
+          clearTimeout(handshake);
           this.#attempt = 0;
           this.options.onState({ status: "connected", session: data.session });
         }
@@ -78,6 +90,7 @@ export class Connection {
       this.options.onMessage(data as Message);
     };
     socket.onclose = (event) => {
+      clearTimeout(handshake);
       if (this.#socket !== socket) return;
       if (event.code === CLOSE_UNAUTHORIZED) {
         this.options.onState({ status: "unauthorized" });

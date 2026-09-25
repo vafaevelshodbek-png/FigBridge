@@ -121,6 +121,9 @@ export class HubServer {
       this.#http.close(() => {
         resolve();
       });
+      // Sockets accepted but not yet upgraded (a plugin mid-handshake) and idle HTTP
+      // keep-alive connections would otherwise stay open, and the client would hang.
+      this.#http.closeAllConnections();
     });
   }
 
