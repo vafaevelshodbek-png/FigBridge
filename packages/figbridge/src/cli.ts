@@ -11,6 +11,7 @@ import { existsSync } from "node:fs";
  *   figbridge status         show whether the hub runs and which files are connected
  *   figbridge call <method>  call a plugin method with JSON params (scripts, debugging)
  *   figbridge export <node>  export a node to a file
+ *   figbridge compare <node> <image>  pixel-compare a node with an image
  *
  * stdout carries command output (and the MCP protocol for `mcp`); logs go to stderr.
  */
@@ -20,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
 import { Command, Option } from "commander";
 import { RemoteHubClient } from "./client.js";
+import { compareNode } from "./compare-node.js";
 import { hubPort, loadOrCreateToken, pairingCode, stateDir } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { importDeck } from "./import-deck.js";
@@ -121,6 +123,32 @@ program
         `Stored in ${stateDir()}; keep it private — it grants edit access to open Figma files.\n`,
     );
   });
+
+program
+  .command("compare")
+  .description("Pixel-compare a node with an image (e.g. a screenshot of its implementation)")
+  .argument("<node>", "node id, e.g. 12:34 (or 12-34 as in Figma URLs)")
+  .argument("<image>", "PNG or JPEG file")
+  .option("-t, --tolerance <n>", "per-channel tolerance 0–255 (default 40)")
+  .option("-o, --out <file>", "write the diff map (red = differs) to this PNG")
+  .option("-s, --session <id>", "target session when several files are connected")
+  .action(
+    async (
+      node: string,
+      image: string,
+      options: { tolerance?: string; out?: string; session?: string },
+    ) => {
+      const { diff, ...result } = await compareNode(remote(), {
+        nodeId: node.replace("-", ":"),
+        imagePath: resolve(image),
+        tolerance: options.tolerance === undefined ? undefined : Number(options.tolerance),
+        session: options.session,
+      });
+      if (options.out !== undefined) await writeFile(resolve(options.out), diff);
+      out(JSON.stringify(result, null, 2));
+      if (result.verdict === "different") process.exitCode = 1;
+    },
+  );
 
 program
   .command("doctor")

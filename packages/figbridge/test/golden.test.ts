@@ -16,8 +16,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { importPdf } from "@figbridge/import-pdf";
 import { importPptx } from "@figbridge/import-pptx";
+import { compareImages } from "@figbridge/scene/compare";
 import { renderSlide } from "@figbridge/scene/render";
-import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
+import { GlobalFonts } from "@napi-rs/canvas";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const REPO = fileURLToPath(new URL("../../../", import.meta.url));
@@ -43,35 +44,6 @@ beforeAll(() => {
   }
 });
 
-async function pixels(png: Uint8Array) {
-  const image = await loadImage(png);
-  const canvas = createCanvas(image.width, image.height);
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(image, 0, 0);
-  return ctx.getImageData(0, 0, image.width, image.height);
-}
-
-/** Share of differing pixels, and a diff map (red = differs, faded original elsewhere). */
-async function compare(actual: Uint8Array, expected: Uint8Array) {
-  const a = await pixels(actual);
-  const e = await pixels(expected);
-  if (a.width !== e.width || a.height !== e.height) return { ratio: 1, map: undefined };
-  const map = createCanvas(a.width, a.height);
-  const out = map.getContext("2d").createImageData(a.width, a.height);
-  let differing = 0;
-  for (let i = 0; i < a.data.length; i += 4) {
-    let delta = 0;
-    for (let c = 0; c < 3; c++)
-      delta = Math.max(delta, Math.abs((a.data[i + c] ?? 0) - (e.data[i + c] ?? 0)));
-    const differs = delta > CHANNEL_TOLERANCE;
-    if (differs) differing++;
-    const grey = 255 - ((255 - (e.data[i] ?? 255)) >> 2);
-    out.data.set(differs ? [255, 0, 0, 255] : [grey, grey, grey, 255], i);
-  }
-  map.getContext("2d").putImageData(out, 0, 0);
-  return { ratio: differing / (a.width * a.height), map: map.toBuffer("image/png") };
-}
-
 const documents = readdirSync(CORPUS).filter((f) => /\.(pdf|pptx)$/i.test(f));
 
 describe.each(documents)("%s matches its golden images", (file) => {
@@ -94,13 +66,19 @@ describe.each(documents)("%s matches its golden images", (file) => {
         writeFileSync(goldenPath, actual);
         continue;
       }
-      const { ratio, map } = await compare(actual, readFileSync(goldenPath));
-      if (ratio > MAX_DIFF_RATIO) {
+      const compared = await compareImages(readFileSync(goldenPath), actual, {
+        tolerance: CHANNEL_TOLERANCE,
+      });
+      const resized = compared.resizedFrom;
+      if (resized !== undefined || compared.ratio > MAX_DIFF_RATIO) {
         mkdirSync(OUTPUT, { recursive: true });
         writeFileSync(join(OUTPUT, name), actual);
-        if (map !== undefined)
-          writeFileSync(join(OUTPUT, name.replace(/\.png$/, ".diff.png")), map);
-        failures.push(`${name}: ${(ratio * 100).toFixed(2)} % of pixels differ (see ${OUTPUT})`);
+        writeFileSync(join(OUTPUT, name.replace(/\.png$/, ".diff.png")), compared.diff);
+        failures.push(
+          resized === undefined
+            ? `${name}: ${(compared.ratio * 100).toFixed(2)} % of pixels differ (see ${OUTPUT})`
+            : `${name}: size changed to ${String(resized.width)}×${String(resized.height)}`,
+        );
       }
     }
     expect(failures).toEqual([]);

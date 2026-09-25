@@ -4,11 +4,12 @@
  * second figbridge process would. Checks what the agent sees: tool list and annotations,
  * results, inline images, files written, and errors that say what to do next.
  */
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { createCanvas } from "@napi-rs/canvas";
 import { pino } from "pino";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { type HubClient, LocalHubClient, RemoteHubClient } from "../src/client.js";
@@ -21,6 +22,19 @@ import { FakePlugin } from "./fake-plugin.js";
 const TOKEN = "0123456789abcdef0123456789abcdef";
 const CORPUS = fileURLToPath(new URL("../../../corpus/", import.meta.url));
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+
+/** A real w×h PNG, blue, with an optional red square in the top-left corner. */
+function png(w: number, h: number, redCorner = 0): Uint8Array {
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#0000FF";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#FF0000";
+  ctx.fillRect(0, 0, redCorner, redCorner);
+  return new Uint8Array(canvas.toBuffer("image/png"));
+}
+/** What the fake plugin exports for layer 2:1 (a 40×20 frame). */
+const FRAME = png(40, 20);
 
 let hub: Hub;
 let blobs: BlobStore;
@@ -45,10 +59,15 @@ const handlers = {
   "page.set": () => PAGE,
   "selection.get": () => ({ nodes: [{ id: "1:2", name: "Card", type: "FRAME" }] }),
   "document.outline": () => ({ nodes: [{ id: "1:2", name: "Card", type: "FRAME", depth: 0 }] }),
-  "node.get": () => ({ node: { id: "1:2", name: "Card", type: "FRAME" } }),
+  "node.get": (params: unknown) =>
+    (params as { nodeId: string }).nodeId === "2:1"
+      ? { node: { id: "2:1", name: "Frame", type: "FRAME", box: { x: 0, y: 0, w: 40, h: 20 } } }
+      : { node: { id: "1:2", name: "Card", type: "FRAME" } },
   "node.find": () => ({ nodes: [], truncated: false }),
   "node.export": (params: unknown) => {
-    const { format } = params as { format: string };
+    const { format, nodeId } = params as { format: string; nodeId: string };
+    if (nodeId === "2:1")
+      return { blob: blobs.put(FRAME, "image/png"), mimeType: "image/png", width: 40, height: 20 };
     const bytes = format === "svg" ? new TextEncoder().encode("<svg/>") : PNG;
     const mimeType = format === "svg" ? "image/svg+xml" : "image/png";
     return { blob: blobs.put(bytes, mimeType), mimeType, width: 10, height: 5 };
@@ -122,9 +141,9 @@ describe.each([
     await server.close();
   });
 
-  it("lists 13 figma_ tools with honest annotations", async () => {
+  it("lists 14 figma_ tools with honest annotations", async () => {
     const { tools } = await mcp.listTools();
-    expect(tools).toHaveLength(13);
+    expect(tools).toHaveLength(14);
     for (const t of tools) expect(t.name).toMatch(/^figma_/);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
     expect(byName["figma_outline"]).toMatchObject({ readOnlyHint: true, destructiveHint: false });
@@ -173,6 +192,42 @@ describe.each([
     const relative = await tool("figma_export", { nodeId: "1:2", saveTo: "card.png" });
     expect(relative.isError).toBe(true);
     expect(relative.content[0]?.text).toContain("absolute");
+  });
+
+  it("compares a layer with an image and shows where they differ", async () => {
+    await connectPlugin();
+    const same = join(dir, "same.png");
+    const changed = join(dir, "changed.png");
+    const bigger = join(dir, "bigger.png");
+    writeFileSync(same, png(40, 20));
+    writeFileSync(changed, png(40, 20, 10));
+    writeFileSync(bigger, png(80, 40));
+    expect(json(await tool("figma_compare", { nodeId: "2:1", imagePath: same }))).toMatchObject({
+      verdict: "identical",
+      differingPixels: 0,
+    });
+    const diff = await tool("figma_compare", { nodeId: "2:1", imagePath: changed });
+    expect(json(diff)).toMatchObject({
+      verdict: "different",
+      differingPixels: 100,
+      differingPercent: 12.5,
+    });
+    expect(diff.content[1]).toMatchObject({ type: "image", mimeType: "image/png" });
+    // A 2× screenshot: the layer is exported at 2×, compared at the image's size.
+    expect(json(await tool("figma_compare", { nodeId: "2:1", imagePath: bigger }))).toMatchObject({
+      width: 80,
+      height: 40,
+    });
+    const saved = join(dir, "diff.png");
+    expect(
+      json(await tool("figma_compare", { nodeId: "2:1", imagePath: changed, saveDiffTo: saved })),
+    ).toMatchObject({ diffSavedTo: saved });
+    expect(readFileSync(saved).subarray(1, 4).toString()).toBe("PNG");
+    const notImage = join(dir, "notes.txt");
+    writeFileSync(notImage, "hello");
+    expect(
+      (await tool("figma_compare", { nodeId: "2:1", imagePath: notImage })).content[0]?.text,
+    ).toMatch(/^IMAGE_INVALID/);
   });
 
   it("imports a deck: converts locally, renders every slide in the plugin", async () => {

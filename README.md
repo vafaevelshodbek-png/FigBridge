@@ -42,10 +42,11 @@ The importers are tested against real decks with golden images on every change; 
 | `figma_file_info`, `figma_pages` | File, editor, pages, selection |
 | `figma_outline`, `figma_find`, `figma_selection`, `figma_get_node` | Read the document (paged, size-bounded) |
 | `figma_export` | Render a node to PNG/JPG/SVG and look at it |
+| `figma_compare` | Pixel-compare a layer with an image (a screenshot of its implementation): differing share and a diff map, for pixel-perfect work |
 | `figma_create`, `figma_update`, `figma_clone`, `figma_delete` | Edit layers |
 | `figma_import_deck` | PDF or PPTX → editable slide frames |
 
-The same operations are available from the CLI: `figbridge status | call | export | import`. If something does not connect, `figbridge doctor` checks the whole setup and says what to fix.
+The same operations are available from the CLI: `figbridge status | call | export | compare | import`. If something does not connect, `figbridge doctor` checks the whole setup and says what to fix.
 
 ## How it works
 

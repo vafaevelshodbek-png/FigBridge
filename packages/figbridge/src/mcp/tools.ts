@@ -14,6 +14,7 @@ import { METHODS, NodeIdSchema } from "@figbridge/protocol";
 import { SceneNodeSchema } from "@figbridge/scene";
 import { z } from "zod";
 import type { HubClient } from "../client.js";
+import { compareNode } from "../compare-node.js";
 import { importDeck } from "../import-deck.js";
 
 export interface ToolAnnotations {
@@ -216,6 +217,43 @@ export const TOOLS: readonly ToolDefinition[] = [
       return [
         jsonText(meta),
         { type: "image", data: Buffer.from(bytes).toString("base64"), mimeType },
+      ];
+    },
+  }),
+
+  define({
+    name: "figma_compare",
+    title: "Compare a layer with an image",
+    description:
+      "Pixel-compare a Figma layer with an image file — a screenshot of the implementation of a design, or the source a layer was built from. Exports the layer at the image's width and returns the share of differing pixels, a verdict and a diff map (red = differs). For pixel-perfect work, fix the largest red areas and compare again until the verdict is identical or close. `tolerance` is per colour channel, 0–255 (default 40; about 10 for strict checks). Pass `saveDiffTo` (absolute path) to write the diff map instead of returning it.",
+    input: z.object({
+      nodeId: NodeIdSchema,
+      imagePath: z.string().describe("Absolute path to a PNG or JPEG on this computer."),
+      tolerance: z.number().int().min(0).max(255).optional(),
+      saveDiffTo: z.string().optional().describe("Absolute file path for the diff PNG."),
+      session: Session,
+    }),
+    annotations: READ,
+    run: async ({ nodeId, imagePath, tolerance, saveDiffTo, session }, { client, signal }) => {
+      if (!isAbsolute(imagePath)) throw new Error("imagePath must be an absolute path.");
+      const { diff, ...result } = await compareNode(client, {
+        nodeId,
+        imagePath,
+        tolerance,
+        session,
+        signal,
+      });
+      if (saveDiffTo !== undefined) {
+        if (!isAbsolute(saveDiffTo)) throw new Error("saveDiffTo must be an absolute path.");
+        await writeFile(resolve(saveDiffTo), diff);
+        return [jsonText({ ...result, diffSavedTo: resolve(saveDiffTo) })];
+      }
+      if (diff.byteLength > MAX_INLINE_IMAGE_BYTES) {
+        return [jsonText({ ...result, diff: "too large to return inline — pass saveDiffTo" })];
+      }
+      return [
+        jsonText(result),
+        { type: "image", data: diff.toString("base64"), mimeType: "image/png" },
       ];
     },
   }),

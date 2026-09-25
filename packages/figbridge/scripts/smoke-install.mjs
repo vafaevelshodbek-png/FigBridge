@@ -60,7 +60,7 @@ try {
     `import { VERSION, TOOLS } from "figbridge"; process.stdout.write(JSON.stringify([VERSION, TOOLS.length]));`,
   );
   const api = run(process.execPath, ["api.mjs"], dir).trim();
-  check(api === JSON.stringify([version, 13]), `library import → ${api}`);
+  check(api === JSON.stringify([version, 14]), `library import → ${api}`);
 
   // A private state dir and port, so a hub the developer is running is not touched.
   const env = {
@@ -75,7 +75,7 @@ try {
   );
   const { tools } = await client.listTools();
   check(
-    tools.length === 13 && tools.every((t) => t.name.startsWith("figma_")),
+    tools.length === 14 && tools.every((t) => t.name.startsWith("figma_")),
     `figbridge mcp serves ${tools.length} tools`,
   );
   const noSession = await client.callTool({ name: "figma_file_info", arguments: {} });
