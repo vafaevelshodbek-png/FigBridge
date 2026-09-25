@@ -12,6 +12,7 @@
     { "path": "../../protocol" },
     { "path": "../../scene" },
     { "path": "../../import-pdf" },
-    { "path": "../../import-pptx" }
+    { "path": "../../import-pptx" },
+    { "path": "../../figbridge" }
   ]
 }

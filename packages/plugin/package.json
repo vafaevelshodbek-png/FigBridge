@@ -14,6 +14,8 @@
     "@figbridge/protocol": "workspace:*",
     "@figbridge/scene": "workspace:*",
     "@figma/plugin-typings": "catalog:",
-    "esbuild": "catalog:"
+    "esbuild": "catalog:",
+    "figbridge": "workspace:*",
+    "pino": "catalog:"
   }
 }
