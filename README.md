@@ -1,23 +1,24 @@
 # figbridge
 
-**Let AI agents read and edit Figma — and turn PDF decks into editable Figma slides.**
+**Let AI agents read and edit Figma — and turn PDF and PowerPoint decks into editable Figma slides.**
 
-figbridge connects an AI agent (Claude Code, Claude Desktop, Cursor, VS Code, any MCP client) to the file you have open in Figma Desktop through a small Figma plugin. The agent can inspect layers, export images, build and edit frames, and import a PDF presentation as real, editable Figma layers:
+figbridge connects an AI agent (Claude Code, Claude Desktop, Cursor, VS Code, any MCP client) to the file you have open in Figma Desktop through a small Figma plugin. The agent can inspect layers, export images, build and edit frames, and import a PDF or `.pptx` deck as real, editable Figma layers:
 
 - backgrounds become frame fills, not pictures;
 - cards and pills become rectangles with their exact corner radii;
 - logos, icons and lines become vectors;
 - photos become image layers at source resolution, cropped and rounded like the original;
 - text becomes editable paragraphs with its fonts, sizes and colours;
+- PowerPoint tables stay tables of cells, and charts (bar, column, line, pie, doughnut) are rebuilt as shapes;
 - everything inside a card is grouped with the card.
 
-Every import can be checked against the original with a visual diff.
+The importers are tested against real decks with golden images on every change; see [Limitations](#limitations) for what is not covered yet.
 
-> Status: pre-release. The core works end to end; see [Limitations](#limitations).
+> Status: pre-release, not yet on npm. The core works end to end in Figma Desktop; until the first release, install from source (see [Development](#development)) and use `node packages/figbridge/dist/cli.mjs` wherever this page says `npx figbridge`.
 
 ## Quick start
 
-1. **Install the plugin** — Figma Desktop → *Plugins → Development → Import plugin from manifest…* → `packages/plugin/manifest.json` (build it first with `pnpm build`).
+1. **Install the plugin** — it ships inside the package: `npx figbridge plugin` prints the path of its `manifest.json`. In Figma Desktop: *Plugins → Development → Import plugin from manifest…* and pick that file.
 2. **Add the MCP server** to your client:
 
    ```bash
@@ -72,7 +73,11 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 pnpm install
 pnpm build          # all packages + the plugin
 pnpm check          # typecheck, lint, tests
+pnpm test:coverage  # tests with the coverage floor CI enforces
+pnpm -F figbridge smoke   # pack, install into an empty folder with npm, run CLI and MCP
 ```
+
+Importer changes are checked against golden images in `corpus/golden/`; after an intended change, `UPDATE_GOLDEN=1 pnpm vitest run --project figbridge golden` and review the new images.
 
 Node ≥ 22. See [CONTRIBUTING.md](CONTRIBUTING.md).
 

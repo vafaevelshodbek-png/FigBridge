@@ -99,9 +99,17 @@ Both are **deterministic**: same input, same Scene. Heuristic thresholds are nam
 
 ## Verification
 
-- Golden Scene snapshots (JSON) for every corpus document — any behavioral change shows up in review.
-- Visual diff: Scene is rasterized by `@figbridge/scene`'s reference renderer and compared with the original (pdf.js render for PDF, LibreOffice → PDF → pdf.js for PPTX) with per-region SSIM. Reports list the worst slides.
-- Live check in Figma (manual/nightly): the same diff against Figma's own export.
+What runs on every push (CI on Windows, macOS and Linux):
+
+- **Schema.** Every imported Scene is validated against the zod schema, which also pins vector paths to the SVG subset Figma accepts (`isFigmaPath`).
+- **Golden images.** Every corpus document is imported, drawn by the reference renderer (`@figbridge/scene/render`, text in a bundled font so images match across machines) and compared with `corpus/golden/`: more than 0.3 % differing pixels fails and uploads the actual image and a diff map.
+- **Figma API contract.** The plugin's renderer and main thread run against `FakeFigma` (packages/plugin/test), which enforces what the real API enforces — image size and format, path grammar, minimum sizes, colour ranges, fonts loaded before text, path normalisation — and renders the whole corpus without a warning.
+- **Features in isolation.** Minimal PPTX and PDF files built in memory (`build-pptx.ts`, `build-pdf.ts`) cover one DrawingML or PDF feature per test.
+- **End to end.** A real MCP client against the real hub and a scripted plugin, in-process and over HTTP; the UI connection against the real hub; and `figbridge mcp` as a subprocess.
+- **Packaging.** `smoke-install.mjs` packs the package, installs it into an empty directory with npm and runs the CLI, the bundled plugin and the MCP server.
+- **Coverage floor.** Lines 85 %, branches 70 % (vitest.config.ts).
+
+By hand, when changing an importer: `scripts/corpus-sheet.mjs` in each importer puts the original (pdf.js render; LibreOffice → PDF for PPTX) next to the import for a set of pages, and a live import into Figma confirms what the fake cannot (fonts, rendering).
 
 ## Error model
 
