@@ -61,7 +61,7 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 
 ## Limitations
 
-- PPTX: SmartArt, OLE objects and charts other than clustered columns are skipped with a warning; table styles (tableStyleId) are not applied yet.
+- PPTX: SmartArt, OLE objects and chart types other than bar/column, line, pie and doughnut (area, scatter, radar, combo…) are skipped with a warning. Charts carry no value axis ticks or gridlines yet.
 - Brand fonts that are not installed fall back to Inter with the same weight; lines can be slightly longer.
 - Rotated text in PDFs is skipped; vectors drawn on top of a photo inside the same image stay part of the photo.
 - Figma Desktop is required (browser Figma cannot load development plugins).

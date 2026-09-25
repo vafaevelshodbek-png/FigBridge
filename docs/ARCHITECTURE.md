@@ -93,7 +93,7 @@ JSON text frames with a shared envelope; binary frames for blobs. Full spec: [`d
 **PDF** (`@figbridge/import-pdf`): pdf.js `getOperatorList` gives the paint-ordered stream with graphics state, clip paths, soft masks, transparency groups, shadings, images and text. An interpreter replays it into a flat list of primitives with resolved transforms, clips and effective opacity. Recognizers then lift primitives into Scene nodes:
 rounded rectangles (per-corner radii), vectors (with even-odd rule and glyph merging), gradients, **photo regions** (rendered by pdf.js with only image operators enabled — no redaction hacks), text paragraphs (line grouping, ligature repair), and **card grouping** by geometric containment and paint order.
 
-**PPTX** (`@figbridge/import-pptx`): OOXML parsing with full inheritance (slide → layout → master → theme), color transforms, preset and custom geometry, pictures (crop, SVG blip), text (runs, bullets, line spacing, autofit as stored), tables, charts (native bars; others rasterized through LibreOffice when available).
+**PPTX** (`@figbridge/import-pptx`): OOXML parsing with full inheritance (slide → layout → master → theme), color transforms, preset and custom geometry, pictures (crop, SVG blip), text (runs, bullets, line spacing, autofit as stored), tables, table styles, charts rebuilt as native layers (bar/column clustered, stacked and 100%, line, pie, doughnut; other types skipped with a warning).
 
 Both are **deterministic**: same input, same Scene. Heuristic thresholds are named constants with a comment explaining the evidence.
 
