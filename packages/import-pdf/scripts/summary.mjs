@@ -18,7 +18,7 @@ const count = (nodes, acc = {}) => {
 for (const slide of scene.slides) {
   console.log(
     slide.name,
-    slide.width + "x" + slide.height,
+    `${slide.width}x${slide.height}`,
     slide.background[0]?.color,
     JSON.stringify(count(slide.children)),
   );

@@ -5,8 +5,8 @@
  */
 
 const NUMBER = String.raw`-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?`;
-const COMMAND = String.raw`(?:[ML] ${NUMBER} ${NUMBER}|Q(?: ${NUMBER}){4}|C(?: ${NUMBER}){6}|Z)`;
-const FIGMA_PATH = new RegExp(String.raw`^${COMMAND}(?: ${COMMAND})*$`);
+const COMMAND = `(?:[ML] ${NUMBER} ${NUMBER}|Q(?: ${NUMBER}){4}|C(?: ${NUMBER}){6}|Z)`;
+const FIGMA_PATH = new RegExp(`^${COMMAND}(?: ${COMMAND})*$`);
 
 /** True when `d` uses only the commands and spacing Figma's `vectorPaths` accepts. */
 export function isFigmaPath(d: string): boolean {
