@@ -286,6 +286,15 @@ importers:
       commander:
         specifier: 'catalog:'
         version: 15.0.0
+      fast-xml-parser:
+        specifier: 'catalog:'
+        version: 5.11.1
+      fflate:
+        specifier: 'catalog:'
+        version: 0.8.3
+      pdfjs-dist:
+        specifier: 'catalog:'
+        version: 6.3.289
       pino:
         specifier: 'catalog:'
         version: 10.3.1
