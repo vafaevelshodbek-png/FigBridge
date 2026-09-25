@@ -78,4 +78,4 @@ Node ≥ 22. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
 
-Created by **Elshodbek** and **[strevesuksess](https://github.com/strevesuksess)**, who wrote the original Figma bridge this project grew from. MIT licensed.
+Created by **[Vafaev Elshodbek](https://github.com/vafaevelshodbek-png)** and **[strevesuksess](https://github.com/strevesuksess)**, who wrote the original Figma bridge this project grew from. MIT licensed.
