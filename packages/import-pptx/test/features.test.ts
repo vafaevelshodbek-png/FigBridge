@@ -202,6 +202,27 @@ describe("pictures", () => {
     }
   });
 
+  it("passes animated GIFs through byte for byte, so the animation survives", async () => {
+    // Two 1×1 frames: a minimal animated GIF (NETSCAPE loop extension, two image blocks).
+    const gif = Uint8Array.from(
+      atob(
+        "R0lGODlhAQABAPABAP8AAAAA/yH/C05FVFNDQVBFMi4wAwEAAAAh+QQAMgAAACwAAAAAAQABAAACAkQBACH5BAAyAAAALAAAAAABAAEAAAICTAEAOw==",
+      ),
+      (c) => c.charCodeAt(0),
+    );
+    const { nodes, blobs } = await nodesOf(pic("rGif"), {
+      rels: `<Relationship Id="rGif" Target="../media/image1.gif"/>`,
+      parts: { "ppt/media/image1.gif": gif },
+    });
+    const node = nodes[0];
+    expect(node?.type).toBe("image");
+    if (node?.type === "image") {
+      const stored = blobs.get(node.image.blob);
+      expect(stored?.mimeType).toBe("image/gif");
+      expect(stored?.bytes).toEqual(gif);
+    }
+  });
+
   it("skips formats Figma cannot show, with a warning", async () => {
     const { nodes, warnings } = await nodesOf(pic("rEmf"), {
       rels: `<Relationship Id="rEmf" Target="../media/image1.emf"/>`,

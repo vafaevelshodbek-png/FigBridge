@@ -66,6 +66,7 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 - PPTX: radar, bubble, stock and surface charts are skipped with a warning (bar, column, line, area, scatter, pie, doughnut and their combinations are rebuilt). SmartArt is imported from the drawing PowerPoint stores with it; files saved without one (rare) skip the diagram with a warning.
 - Fonts that are not installed are replaced by a metric-compatible twin when one exists (Calibri → Carlito, Arial → Arimo, Times New Roman → Tinos…), else by a face of the same kind or Inter with the same weight; brand fonts can then run slightly longer.
 - Rotated text in PDFs is skipped; vectors drawn on top of a photo inside the same image stay part of the photo.
+- Animated GIFs keep their animation (it plays in Figma's presentation view) unless they are larger than 4096 px on a side, which Figma requires to be downscaled to a still image. Videos import as their poster frame.
 - Figma Desktop is required (browser Figma cannot load development plugins).
 
 ## Development
