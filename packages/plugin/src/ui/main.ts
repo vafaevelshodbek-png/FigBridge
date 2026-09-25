@@ -16,7 +16,11 @@ const HTTP = `http://${HUB}`;
  * persisted: clientStorage is shared by every file, and two files with the same instance
  * would be mistaken for one plugin reconnecting.
  */
-const INSTANCE = `i_${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
+// The UI iframe is a data: URL, not a secure context: crypto.randomUUID is missing there,
+// getRandomValues is not.
+const INSTANCE = `i_${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) =>
+  b.toString(16).padStart(2, "0"),
+).join("")}`;
 
 const statusEl = element("status", HTMLElement);
 const detailEl = element("detail", HTMLElement);
