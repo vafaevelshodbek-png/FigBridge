@@ -59,7 +59,7 @@ export class Hub {
   attach(hello: Hello, socket: SessionSocket): Session {
     const existing = [...this.#sessions.values()].find((s) => s.info.instance === hello.instance);
     if (existing !== undefined) {
-      existing.rebind(socket);
+      existing.rebind(socket, hello.file.name);
       return existing;
     }
     const session = new Session(

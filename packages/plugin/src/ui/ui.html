@@ -61,8 +61,14 @@
       <button id="stop" class="secondary" type="button">Stop</button>
       <span id="busy" hidden>Agent is working…</span>
     </div>
+    <form id="label-form" class="row">
+      <input id="label" autocomplete="off" spellcheck="false" maxlength="80"
+             placeholder="Name for agents (optional)" aria-label="Name this file for agents" />
+      <button class="secondary" type="submit">Save</button>
+    </form>
     <div id="approvals"></div>
     <ol id="activity" aria-label="Recent agent actions"></ol>
+    <div class="row"><button id="forget" class="secondary" type="button">Forget pairing</button></div>
   </section>
   <script>
     // Runs before the bundle: any uncaught error, even while the bundle starts, is shown here

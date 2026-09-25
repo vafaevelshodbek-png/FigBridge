@@ -45,10 +45,10 @@ export class Session {
   readonly #pending = new Map<string, Pending>();
   lastSeen = new Date();
 
-  constructor(
-    readonly info: SessionInfo,
-    socket: SessionSocket,
-  ) {
+  #info: SessionInfo;
+
+  constructor(info: SessionInfo, socket: SessionSocket) {
+    this.#info = info;
     this.#socket = socket;
   }
 
@@ -57,8 +57,17 @@ export class Session {
     return this.#pending.size;
   }
 
-  /** Swap the socket after the plugin reconnected with the same instance id. */
-  rebind(socket: SessionSocket): void {
+  get info(): SessionInfo {
+    return this.#info;
+  }
+
+  /**
+   * Swap the socket after the plugin reconnected with the same instance id. The file name
+   * is taken from the new handshake: the file may have been renamed, or given a name for
+   * agents, in between.
+   */
+  rebind(socket: SessionSocket, file: string = this.#info.file): void {
+    this.#info = { ...this.#info, file };
     this.#socket.close(4000, "replaced by a newer connection");
     this.#socket = socket;
     this.failAll(

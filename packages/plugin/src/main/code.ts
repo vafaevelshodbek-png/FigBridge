@@ -61,6 +61,8 @@ function resolveImage(blob: string): Promise<string> {
 
 /** Key of the access mode in the document's plugin data: the choice belongs to the file. */
 const ACCESS_KEY = "figbridge.access";
+/** Key of the name the user gave this file for agents. */
+const LABEL_KEY = "figbridge.label";
 
 /** Answers the user has not given yet, by request id. */
 const approvals = new Map<string, (answer: Answer) => void>();
@@ -115,6 +117,7 @@ figma.showUI(__html__, { width: 320, height: 460, title: "figbridge", themeColor
 ui.post({
   kind: "hello-info",
   file: figma.root.name,
+  label: figma.root.getPluginData(LABEL_KEY),
   editorType: figma.editorType,
   pluginVersion: __PLUGIN_VERSION__,
 });
@@ -141,6 +144,9 @@ figma.ui.onmessage = (message: UiToMain) => {
     case "stop":
       dispatcher.cancelAll();
       for (const answer of approvals.values()) answer("deny");
+      return;
+    case "label.set":
+      figma.root.setPluginData(LABEL_KEY, message.label.trim().slice(0, 80));
       return;
     case "storage.set":
       void figma.clientStorage.setAsync(message.key, message.value);

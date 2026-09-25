@@ -162,6 +162,15 @@ describe("calls", () => {
   });
 });
 
+describe("session names", () => {
+  it("a reconnect with the same instance takes the file's new name", async () => {
+    const first = await plugin({ instance: "instance-rename-1", file: "Untitled" });
+    await first.close();
+    await plugin({ instance: "instance-rename-1", file: "Quarterly deck" });
+    await expect.poll(() => hub.sessions().map((s) => s.file)).toEqual(["Quarterly deck"]);
+  });
+});
+
 describe("session routing", () => {
   it("errors with NO_SESSION when nothing is connected", async () => {
     await expect(hub.call("session.info", {})).rejects.toMatchObject({ code: "NO_SESSION" });

@@ -155,9 +155,20 @@ describe("startup", () => {
     expect(posted()[0]).toEqual({
       kind: "hello-info",
       file: "Untitled",
+      label: "",
       editorType: "figma",
       pluginVersion: "0.0.0-test",
     });
+  });
+
+  it("remembers the name the user gives the file and announces it next time", async () => {
+    expect(posted()[0]).toMatchObject({ kind: "hello-info", label: "" });
+    send({ kind: "label.set", label: "  Quarterly deck  " });
+    expect(fake.root.getPluginData("figbridge.label")).toBe("Quarterly deck");
+    vi.resetModules();
+    fake.posted.length = 0;
+    await import("../src/main/code.js");
+    expect(posted()[0]).toMatchObject({ kind: "hello-info", label: "Quarterly deck" });
   });
 
   it("keeps the pairing token in clientStorage for the UI", async () => {

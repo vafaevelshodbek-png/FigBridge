@@ -27,6 +27,9 @@ const statusEl = element("status", HTMLElement);
 const detailEl = element("detail", HTMLElement);
 const pairForm = element("pair", HTMLFormElement);
 const tokenInput = element("token", HTMLInputElement);
+const labelForm = element("label-form", HTMLFormElement);
+const labelInput = element("label", HTMLInputElement);
+const forgetButton = element("forget", HTMLButtonElement);
 const panel = new AgentPanel(
   {
     mode: element("mode", HTMLSelectElement),
@@ -43,7 +46,7 @@ const panel = new AgentPanel(
 );
 
 let token: string | null = null;
-let info: { file: string; editorType: string; pluginVersion: string } | undefined;
+let info: { file: string; label: string; editorType: string; pluginVersion: string } | undefined;
 let connection: Connection | undefined;
 let storageTicket = 0;
 const storageWaiters = new Map<number, (value: string | null) => void>();
@@ -107,7 +110,8 @@ function hello(): Hello {
     protocols: [1],
     plugin: { version: info?.pluginVersion ?? "0.0.0" },
     file: {
-      name: info?.file ?? "",
+      // The name the user gave the file, if any: agents see it in figma_sessions.
+      name: info?.label || (info?.file ?? ""),
       editorType: (info?.editorType ?? "figma") as Hello["file"]["editorType"],
     },
     instance: INSTANCE,
@@ -211,9 +215,11 @@ window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
     case "hello-info":
       info = {
         file: message.file,
+        label: message.label,
         editorType: message.editorType,
         pluginVersion: message.pluginVersion,
       };
+      labelInput.value = message.label;
       connect();
       return;
     case "response":
@@ -260,8 +266,28 @@ pairForm.onsubmit = (event) => {
   connect();
 };
 
+labelForm.onsubmit = (event) => {
+  event.preventDefault();
+  if (info === undefined) return;
+  const label = labelInput.value.trim();
+  info.label = label;
+  toMain({ kind: "label.set", label });
+  // The hub learns names at the handshake: reconnect to announce it.
+  connect();
+};
+
+forgetButton.onclick = () => {
+  token = null;
+  connection?.stop();
+  connection = undefined;
+  toMain({ kind: "storage.set", key: STORAGE_KEYS.token, value: "" });
+  render({ status: "pairing" });
+};
+
 async function boot(): Promise<void> {
-  token = await storageGet(STORAGE_KEYS.token);
+  const saved = await storageGet(STORAGE_KEYS.token);
+  // "Forget pairing" stores an empty token.
+  token = saved === null || saved === "" ? null : saved;
   if (token === null) render({ status: "pairing" });
   else connect();
 }

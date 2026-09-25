@@ -18,11 +18,19 @@ export type UiToMain =
   | { kind: "access.set"; mode: AccessMode }
   | { kind: "pause.set"; paused: boolean }
   | { kind: "approval.answer"; id: string; answer: "once" | "session" | "deny" }
-  | { kind: "stop" };
+  | { kind: "stop" }
+  | { kind: "label.set"; label: string };
 
 /** Main → UI. */
 export type MainToUi =
-  | { kind: "hello-info"; file: string; editorType: string; pluginVersion: string }
+  | {
+      kind: "hello-info";
+      file: string;
+      /** Name the user gave this file for agents; "" when none. */
+      label: string;
+      editorType: string;
+      pluginVersion: string;
+    }
   | { kind: "response"; response: Response }
   | { kind: "progress"; id: string; done: number; total?: number }
   | { kind: "blob.get"; ticket: number; blob: string }
