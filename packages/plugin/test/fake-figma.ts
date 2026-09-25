@@ -161,9 +161,52 @@ export class FakeFigma {
     return Promise.resolve();
   };
 
-  commitUndo = () => undefined;
+  undoSteps = 0;
+  commitUndo = () => {
+    this.undoSteps++;
+  };
   notify = () => ({ cancel: () => undefined });
-  getNodeByIdAsync = (id: string) => Promise.resolve(this.#nodes.get(id) ?? null);
+  /** Removed nodes are gone for good, as in Figma. */
+  getNodeByIdAsync = (id: string) => {
+    const node = this.#nodes.get(id);
+    return Promise.resolve(node === undefined || node.removed ? null : node);
+  };
+
+  /** Messages the main thread posted to the UI iframe. */
+  readonly posted: unknown[] = [];
+  readonly ui = {
+    postMessage: (message: unknown) => {
+      this.posted.push(message);
+    },
+    onmessage: undefined as ((message: unknown) => void) | undefined,
+  };
+
+  readonly storage = new Map<string, unknown>();
+  readonly clientStorage = {
+    getAsync: (key: string) => Promise.resolve(this.storage.get(key)),
+    setAsync: (key: string, value: unknown) => {
+      this.storage.set(key, value);
+      return Promise.resolve();
+    },
+  };
+
+  shown = false;
+  showUI = () => {
+    this.shown = true;
+  };
+
+  addPage(name: string): FakeNode {
+    const page = new FakeNode(this, "PAGE");
+    page.name = name;
+    this.root.appendChild(page);
+    return page;
+  }
+
+  setCurrentPageAsync = (page: FakeNode) => {
+    if (page.type !== "PAGE") fail("setCurrentPageAsync expects a page");
+    this.currentPage = page;
+    return Promise.resolve();
+  };
 
   requireFont(font: { family: string; style: string }, what: string): void {
     if (!this.loadedFonts.has(`${font.family}\u0000${font.style}`)) {
@@ -242,9 +285,70 @@ export class FakeNode {
     this.children.push(child);
   }
 
+  removed = false;
+  selection: FakeNode[] = [];
+  rotation = 0;
+
   remove(): void {
     if (this.parent !== null) this.parent.children.splice(this.parent.children.indexOf(this), 1);
     this.parent = null;
+    const mark = (node: FakeNode) => {
+      node.removed = true;
+      node.children.forEach(mark);
+    };
+    mark(this);
+  }
+
+  /** Descendants matching `predicate`, depth first (Figma's findAll). */
+  findAll(predicate: (node: FakeNode) => boolean): FakeNode[] {
+    const out: FakeNode[] = [];
+    const walk = (node: FakeNode) => {
+      for (const child of node.children) {
+        if (predicate(child)) out.push(child);
+        walk(child);
+      }
+    };
+    walk(this);
+    return out;
+  }
+
+  /** Bounds on the canvas (translation only: enough for the handlers' summaries). */
+  get absoluteBoundingBox(): { x: number; y: number; width: number; height: number } | null {
+    if (this.type === "PAGE" || this.type === "DOCUMENT") return null;
+    let x = this.x;
+    let y = this.y;
+    for (let p = this.parent; p !== null && p.type !== "PAGE"; p = p.parent) {
+      x += p.x;
+      y += p.y;
+    }
+    return { x, y, width: this.width, height: this.height };
+  }
+
+  /** A copy in the same parent, right after the original (Figma's clone). */
+  clone(): FakeNode {
+    if (this.type === "PAGE" || this.type === "DOCUMENT") fail("Cannot clone a page");
+    const copy = new FakeNode(this.figma, this.type);
+    copy.name = this.name;
+    copy.resize(this.width, this.height);
+    copy.x = this.x;
+    copy.y = this.y;
+    copy.fills = this.fills;
+    if (this.parent !== null) this.parent.appendChild(copy);
+    return copy;
+  }
+
+  exportAsync(settings: {
+    format: string;
+    constraint?: { type: string; value: number };
+  }): Promise<Uint8Array> {
+    if (!["PNG", "JPG", "SVG", "PDF"].includes(settings.format))
+      fail(`export format ${settings.format}`);
+    return Promise.resolve(new TextEncoder().encode(`${settings.format}:${this.id}`));
+  }
+
+  getRangeAllFontNames(start: number, end: number): { family: string; style: string }[] {
+    if (start < 0 || end < start) fail("getRangeAllFontNames: bad range");
+    return [this.fontName];
   }
 
   resize(width: number, height: number): void {
@@ -332,8 +436,13 @@ export class FakeNode {
     if (!["NONE", "ROUND", "SQUARE"].includes(value)) fail(`strokeCap: ${value}`);
   }
 
+  #cornerRadius = 0;
+  get cornerRadius(): number {
+    return this.#cornerRadius;
+  }
   set cornerRadius(value: number) {
     if (finite(value, "cornerRadius") < 0) fail("cornerRadius must be >= 0");
+    this.#cornerRadius = value;
   }
   set topLeftRadius(value: number) {
     this.cornerRadius = value;
