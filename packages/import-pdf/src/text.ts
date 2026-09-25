@@ -8,6 +8,7 @@
 import type { TextNode as SceneTextNode, TextRun } from "@figbridge/scene";
 import { parseFontName } from "./fonts.js";
 import type { Glyph } from "./interpret.js";
+import { round } from "./round.js";
 
 /** Glyphs belong to the same line when their baselines differ by less than this × size. */
 const SAME_BASELINE = 0.2;
@@ -287,8 +288,4 @@ export function paragraphToNode(paragraph: readonly Line[], id: string): SceneTe
     verticalAlign: "top",
     sizing: "width",
   };
-}
-
-function round(value: number): number {
-  return Math.round(value * 100) / 100;
 }

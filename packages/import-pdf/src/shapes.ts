@@ -6,6 +6,7 @@
 import type { Paint, RectNode, Stroke, VectorNode } from "@figbridge/scene";
 import type { ClipPath, PathPrimitive } from "./interpret.js";
 import { asRoundedRect, type Box, bounds, subpathCount, toSvgPath } from "./path.js";
+import { round } from "./round.js";
 
 /** Shapes smaller than this (px, both sides) are candidates for merging into one vector. */
 const MERGE_MAX_SIZE = { w: 320, h: 150 } as const;
@@ -76,8 +77,6 @@ function strokeOf(p: PathPrimitive): Stroke[] {
     },
   ];
 }
-
-const round = (n: number) => Math.round(n * 100) / 100;
 
 /** A single path primitive as a rectangle when possible. */
 export function toRect(p: PathPrimitive, id: string, visible: Box): RectNode | undefined {
