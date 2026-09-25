@@ -152,10 +152,11 @@ describe("calls", () => {
 
   it("fails pending calls as retryable when the plugin disconnects", async () => {
     const fake = await plugin();
-    const call = hub.call("session.info", {}, { timeoutMs: 5_000 });
+    // Attach the handler up front: the rejection can land while close() is still awaited.
+    const call = hub.call("session.info", {}, { timeoutMs: 5_000 }).catch((e: unknown) => e);
     await expect.poll(() => fake.received.length).toBe(1);
     await fake.close();
-    const error = await call.catch((e: unknown) => e);
+    const error = await call;
     expect(error).toBeInstanceOf(BridgeError);
     expect(error).toMatchObject({ code: "SESSION_NOT_FOUND", retryable: true });
   });
