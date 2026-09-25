@@ -17,3 +17,4 @@ Thumbs.db
 corpus-local/
 out/
 .tsbuild/
+test-output/

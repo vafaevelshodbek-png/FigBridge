@@ -28,3 +28,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Upload golden diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-${{ matrix.os }}-node${{ matrix.node }}
+          path: test-output/golden/
+          if-no-files-found: ignore

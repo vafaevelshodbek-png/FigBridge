@@ -2,8 +2,9 @@
  * Reference rasterizer: draws a Scene slide to PNG without Figma.
  *
  * Used for golden/visual tests and the `verify` workflow (compare with the source render).
- * It follows Figma's semantics for the features importers emit; text uses whatever fonts
- * are installed, so text-heavy diffs need a tolerance.
+ * It follows Figma's semantics for the features importers emit. Text uses installed fonts;
+ * for output that is identical across machines (golden tests), pass `fontFamily` to draw
+ * every run in one registered font.
  *
  * Node-only (depends on @napi-rs/canvas); import from "@figbridge/scene/render".
  */
@@ -16,6 +17,17 @@ export interface RenderOptions {
   scale?: number;
   /** Background when the slide has none (default white). */
   fallbackBackground?: string;
+  /** Draw all text in this family (keeping weight and style), e.g. a font bundled for tests. */
+  fontFamily?: string;
+}
+
+/** The slide's nodes with every text run set to `family`. */
+function withFontFamily(nodes: readonly SceneNode[], family: string): SceneNode[] {
+  return nodes.map((node) => {
+    if (node.type === "group") return { ...node, children: withFontFamily(node.children, family) };
+    if (node.type !== "text") return node;
+    return { ...node, runs: node.runs.map((run) => ({ ...run, fontFamily: family })) };
+  });
 }
 
 export async function renderSlide(
@@ -34,7 +46,11 @@ export async function renderSlide(
       ctx.fillRect(0, 0, slide.width, slide.height);
     });
   }
-  for (const node of slide.children) await drawNode(ctx, node, blobs);
+  const children =
+    options.fontFamily === undefined
+      ? slide.children
+      : withFontFamily(slide.children, options.fontFamily);
+  for (const node of children) await drawNode(ctx, node, blobs);
   return canvas.toBuffer("image/png");
 }
 
