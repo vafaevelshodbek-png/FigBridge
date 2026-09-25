@@ -3,7 +3,7 @@
  * column charts (clustered, stacked, 100% stacked), line charts, pie and doughnut charts.
  * Other chart types are reported and skipped.
  */
-import type { Paint, SceneNode, TextNode } from "@figbridge/scene";
+import { ellipseArcCubics, type Paint, type SceneNode, type TextNode } from "@figbridge/scene";
 import { resolveColor } from "./color.js";
 import { ptToPx, resolveTypeface, round, type SlideContext } from "./context.js";
 import { fillElement, paintsOf } from "./fill.js";
@@ -529,19 +529,16 @@ export function slicePath(r: number, inner: number, start: number, sweep: number
     const a = (deg * Math.PI) / 180;
     return `${String(round(r + radius * Math.cos(a)))} ${String(round(r + radius * Math.sin(a)))}`;
   };
-  const arc = (radius: number, large: number, clockwise: number, to: string) =>
-    `A ${String(round(radius))} ${String(round(radius))} 0 ${String(large)} ${String(clockwise)} ${to}`;
+  const arc = (radius: number, from: number, by: number) =>
+    ellipseArcCubics(r, r, radius, radius, from, by);
   if (sweep >= 359.999) {
-    const ring = `M ${p(r, 0)} ${arc(r, 1, 1, p(r, 180))} ${arc(r, 1, 1, p(r, 360))} Z`;
-    return inner > 0
-      ? `${ring} M ${p(inner, 0)} ${arc(inner, 1, 0, p(inner, 180))} ${arc(inner, 1, 0, p(inner, 360))} Z`
-      : ring;
+    const ring = `M ${p(r, 0)} ${arc(r, 0, 360)} Z`;
+    return inner > 0 ? `${ring} M ${p(inner, 0)} ${arc(inner, 0, -360)} Z` : ring;
   }
-  const large = sweep > 180 ? 1 : 0;
   const end = start + sweep;
   if (inner <= 0)
-    return `M ${String(round(r))} ${String(round(r))} L ${p(r, start)} ${arc(r, large, 1, p(r, end))} Z`;
-  return `M ${p(r, start)} ${arc(r, large, 1, p(r, end))} L ${p(inner, end)} ${arc(inner, large, 0, p(inner, start))} Z`;
+    return `M ${String(round(r))} ${String(round(r))} L ${p(r, start)} ${arc(r, start, sweep)} Z`;
+  return `M ${p(r, start)} ${arc(r, start, sweep)} L ${p(inner, end)} ${arc(inner, end, -sweep)} Z`;
 }
 
 /** Axis maximum PowerPoint would choose: a 1/2/5 step giving at most 7 gridlines. */

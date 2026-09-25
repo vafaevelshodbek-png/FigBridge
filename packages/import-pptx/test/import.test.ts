@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { type SceneNode, SceneSchema } from "@figbridge/scene";
+import { isFigmaPath, type SceneNode, SceneSchema } from "@figbridge/scene";
 import { describe, expect, it } from "vitest";
 import { niceMax, slicePath } from "../src/chart.js";
 import { applyTransforms, hexToRgb } from "../src/color.js";
@@ -142,13 +142,24 @@ describe("importPptx", () => {
 });
 
 describe("pie slices", () => {
-  it("draws a quarter slice from 12 o'clock clockwise", () => {
-    expect(slicePath(10, 0, -90, 90)).toBe("M 10 10 L 10 0 A 10 10 0 0 1 20 10 Z");
+  it("draws a quarter slice from 12 o'clock clockwise, in Figma's path subset", () => {
+    const d = slicePath(10, 0, -90, 90);
+    expect(isFigmaPath(d)).toBe(true);
+    expect(d.startsWith("M 10 10 L 10 0 C ")).toBe(true);
+    expect(d.endsWith(" 20 10 Z")).toBe(true);
   });
-  it("uses the large-arc flag past 180 degrees", () => {
-    expect(slicePath(10, 0, -90, 270)).toContain("A 10 10 0 1 1");
+  it("splits sweeps past a quarter turn into several curves", () => {
+    expect(slicePath(10, 0, -90, 270).match(/C /g)).toHaveLength(3);
   });
   it("cuts the doughnut hole back along the inner radius", () => {
-    expect(slicePath(10, 5, -90, 90)).toBe("M 10 0 A 10 10 0 0 1 20 10 L 15 10 A 5 5 0 0 0 10 5 Z");
+    const d = slicePath(10, 5, -90, 90);
+    expect(isFigmaPath(d)).toBe(true);
+    expect(d).toContain(" L 15 10 C ");
+    expect(d.endsWith(" 10 5 Z")).toBe(true);
+  });
+  it("draws a full doughnut as two opposite rings", () => {
+    const d = slicePath(10, 5, -90, 360);
+    expect(isFigmaPath(d)).toBe(true);
+    expect(d.match(/M /g)).toHaveLength(2);
   });
 });

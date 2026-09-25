@@ -1,6 +1,3 @@
-import { defineProject } from "vitest/config";
+import { workspaceProject } from "../../vitest.project.js";
 
-export default defineProject({
-  resolve: { conditions: ["@figbridge/source"] },
-  test: { name: "plugin", include: ["test/**/*.test.ts"] },
-});
+export default workspaceProject("plugin");

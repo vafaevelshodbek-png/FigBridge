@@ -6,6 +6,7 @@
  * Colours are sRGB hex (`#RRGGBB`) with a separate `opacity` in [0, 1].
  */
 import { z } from "zod";
+import { isFigmaPath } from "./path.js";
 
 /** Major version of the IR. Renderers reject unknown majors. */
 export const SCENE_VERSION = 1 as const;
@@ -117,9 +118,14 @@ export const EllipseNodeSchema = z.object({
   strokes: z.array(StrokeSchema).default([]),
 });
 
-/** Vector path in the node's local coordinates (0..w, 0..h), SVG path syntax. */
+/**
+ * Vector path in the node's local coordinates (0..w, 0..h), in the SVG subset Figma accepts:
+ * absolute M, L, Q, C and Z separated by single spaces (see ./path.ts; arcs → arcToCubics).
+ */
 export const VectorPathSchema = z.object({
-  d: z.string().min(1),
+  d: z.string().refine(isFigmaPath, {
+    message: "path data must use only absolute M, L, Q, C, Z separated by single spaces",
+  }),
   fillRule: z.enum(["nonzero", "evenodd"]).default("nonzero"),
 });
 

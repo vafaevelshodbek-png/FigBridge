@@ -3,7 +3,7 @@
  * with per-corner radii, ellipses), custom geometry and lines as vector paths in the shape's
  * local box (0..w, 0..h). Rotation and flips stay on the node, as in Figma.
  */
-import type { CornerRadii } from "@figbridge/scene";
+import { type CornerRadii, ellipseArcCubics } from "@figbridge/scene";
 import { attr, child, childrenOf, num, type XmlElement } from "./xml.js";
 
 const PERCENT = 100_000;
@@ -255,6 +255,7 @@ function customGeometry(cust: XmlElement, w: number, h: number): Geometry {
 /**
  * DrawingML arcTo: an elliptical arc starting at the current point, which lies on the
  * ellipse at angle `start` (degrees, clockwise, parametric); sweeps `sweep` degrees.
+ * Emitted as cubic Béziers — Figma's vector paths have no arc command.
  */
 function arc(
   current: [number, number],
@@ -269,13 +270,11 @@ function arc(
   };
   const [sx, sy] = at(start);
   const [ex, ey] = at(start + sweep);
-  const end: [number, number] = [current[0] - sx + ex, current[1] - sy + ey];
-  const large = Math.abs(sweep) > 180 ? 1 : 0;
-  const sweepFlag = sweep > 0 ? 1 : 0;
-  return [
-    `A ${f(wr)} ${f(hr)} 0 ${String(large)} ${String(sweepFlag)} ${f(end[0])} ${f(end[1])}`,
-    end,
-  ];
+  const cx = current[0] - sx;
+  const cy = current[1] - sy;
+  const end: [number, number] = [cx + ex, cy + ey];
+  const command = ellipseArcCubics(cx, cy, wr, hr, start, sweep);
+  return [command === "" ? `L ${f(end[0])} ${f(end[1])}` : command, end];
 }
 
 function f(n: number): string {

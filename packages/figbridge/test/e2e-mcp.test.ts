@@ -35,7 +35,8 @@ async function connectWithRetry(fake: FakePlugin, timeoutMs: number): Promise<vo
   }
 }
 
-describe.skipIf(!existsSync(CLI))("MCP end to end", () => {
+// Needs the built CLI: skipped locally before `pnpm build`, mandatory in CI.
+describe.skipIf(!existsSync(CLI) && process.env["CI"] === undefined)("MCP end to end", () => {
   beforeAll(async () => {
     const env = {
       ...process.env,

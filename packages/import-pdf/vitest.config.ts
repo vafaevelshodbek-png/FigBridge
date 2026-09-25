@@ -1,6 +1,3 @@
-import { defineProject } from "vitest/config";
+import { workspaceProject } from "../../vitest.project.js";
 
-export default defineProject({
-  resolve: { conditions: ["@figbridge/source"] },
-  test: { name: "import-pdf", include: ["test/**/*.test.ts"], testTimeout: 60_000 },
-});
+export default workspaceProject("import-pdf", { testTimeout: 60_000 });
