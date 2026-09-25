@@ -7,7 +7,7 @@ figbridge gives an AI agent edit access to the Figma files you open with the plu
 - The hub binds to `127.0.0.1` only.
 - Requests whose `Host` header is not a loopback name are rejected (DNS rebinding).
 - Browser origins are rejected; only the plugin's opaque origin (`null`) or non-browser clients are accepted.
-- Every request and the plugin handshake require a 128-bit pairing token stored with user-only permissions in `~/.figbridge/token`.
+- Every request and the plugin handshake require a 128-bit pairing token in `~/.figbridge/token` (mode 600 on macOS and Linux; on Windows the file is protected by your user profile's permissions only).
 - The plugin implements a fixed method catalog. There is no method that evaluates code.
 - Documents being imported are treated as untrusted input; parsing is bounded.
 - `--read-only` disables every method that modifies the document.
