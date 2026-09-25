@@ -48,6 +48,14 @@ describe.skipIf(!built && process.env["CI"] === undefined)("built bundles", () =
     }
   });
 
+  it("the UI installs its error display before the bundle runs", () => {
+    const html = ui();
+    const handler = html.indexOf('addEventListener("error"');
+    const bundle = html.indexOf('"use strict"');
+    expect(handler).toBeGreaterThan(0);
+    expect(handler).toBeLessThan(bundle);
+  });
+
   it("the UI is a single self-contained page", () => {
     expect(ui()).not.toMatch(/<script[^>]+src=|<link[^>]+href=/i);
     expect(ui().match(/<script>/g)).toHaveLength(1);

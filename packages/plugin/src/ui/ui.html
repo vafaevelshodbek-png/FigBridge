@@ -27,6 +27,22 @@
     <input id="token" autocomplete="off" spellcheck="false" placeholder="Pairing token" aria-label="Pairing token" />
     <button type="submit">Pair</button>
   </form>
-  <script>/*__UI_SCRIPT__*/</script>
+  <script>
+    // Runs before the bundle: any uncaught error, even while the bundle starts, is shown here
+    // instead of leaving a blank window (the first live test failed exactly like that).
+    (() => {
+      function show(message) {
+        var status = document.getElementById("status");
+        var detail = document.getElementById("detail");
+        if (status) { status.textContent = "Plugin error"; status.setAttribute("data-state", "incompatible"); }
+        if (detail) detail.textContent = String(message) + " — reopen the plugin; if it persists, report it with this text.";
+      }
+      window.addEventListener("error", (event) => { show(event.message); });
+      window.addEventListener("unhandledrejection", (event) => {
+        show(event.reason && event.reason.message ? event.reason.message : event.reason);
+      });
+    })();
+    /*__UI_SCRIPT__*/
+  </script>
 </body>
 </html>
