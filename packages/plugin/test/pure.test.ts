@@ -68,6 +68,39 @@ describe("fontCandidates", () => {
       "SemiBold",
     );
   });
+
+  it.each([
+    ["Calibri", "Carlito"],
+    ["Arial", "Arimo"],
+    ["ArialMT", "Arimo"],
+    ["Helvetica-Neue", "Arimo"],
+    ["Times New Roman", "Tinos"],
+    ["Cambria", "Caladea"],
+    ["Courier New", "Cousine"],
+  ])("%s falls back to its metric twin %s before Inter", (family, twin) => {
+    const families = fontCandidates({ family, style: "Bold" }).map((f) => f.family);
+    expect(families.indexOf(twin)).toBeGreaterThan(0);
+    expect(families.indexOf(twin)).toBeLessThan(families.indexOf("Inter"));
+  });
+
+  it.each([
+    ["Brand Serif Display", "Noto Serif"],
+    ["Garamond Premier", "Noto Serif"],
+    ["Source Code Pro", "Roboto Mono"],
+    ["Brand Sans Condensed", "Roboto Condensed"],
+  ])("%s falls back to a face of its kind (%s)", (family, kind) => {
+    expect(fontCandidates({ family, style: "Regular" }).map((f) => f.family)).toEqual([
+      family,
+      kind,
+      "Inter",
+    ]);
+  });
+
+  it("a sans-serif brand font goes straight to Inter", () => {
+    expect(
+      fontCandidates({ family: "Shopify Sans", style: "Regular" }).map((f) => f.family),
+    ).toEqual(["Shopify Sans", "Inter"]);
+  });
 });
 
 describe("FontLoader", () => {

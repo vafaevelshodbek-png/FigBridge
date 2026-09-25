@@ -18,16 +18,68 @@ const STYLE_ALIASES: Record<string, string[]> = {
   "Extra Light": ["ExtraLight", "Extralight", "Ultra Light"],
 };
 
-/** Candidate fonts to try, in order, for one request. Pure — unit-tested. */
+/**
+ * Drop-in replacements with the same advance widths, so text keeps its line breaks. The
+ * replacements are Google Fonts, which Figma always has.
+ */
+const METRIC_TWINS: Readonly<Record<string, readonly string[]>> = {
+  arial: ["Arimo", "Liberation Sans"],
+  helvetica: ["Arimo", "Liberation Sans"],
+  "helvetica neue": ["Arimo"],
+  calibri: ["Carlito"],
+  cambria: ["Caladea"],
+  "times new roman": ["Tinos", "Liberation Serif"],
+  times: ["Tinos"],
+  georgia: ["Gelasio"],
+  "courier new": ["Cousine", "Liberation Mono"],
+  courier: ["Cousine"],
+};
+
+/** When no twin is known: the closest kind of face, judged by the name. */
+function kindFallback(family: string): string | undefined {
+  const name = family.toLowerCase();
+  if (/mono|code|courier|consol/.test(name)) return "Roboto Mono";
+  if (/condensed|narrow|compressed/.test(name)) return "Roboto Condensed";
+  if (
+    !/sans/.test(name) &&
+    /serif|times|garamond|georgia|minion|baskerville|caslon|palatino|antiqua|cambria/.test(name)
+  )
+    return "Noto Serif";
+  return undefined;
+}
+
+/** Family name as the twin table spells it: lower case, without PostScript suffixes. */
+function twinKey(family: string): string {
+  return family
+    .toLowerCase()
+    .replace(/[-_]/g, " ")
+    .replace(/\s*(mt|ps|pro|std)$/, "")
+    .trim();
+}
+
+/**
+ * Candidate fonts to try, in order, for one request: the family itself (with style
+ * spellings, then upright), a metric-compatible twin, a face of the same kind, then Inter.
+ * Pure — unit-tested.
+ */
 export function fontCandidates(request: FontRequest, fallbackFamily = "Inter"): FontRequest[] {
   const styles = [request.style, ...(STYLE_ALIASES[request.style] ?? [])];
   const italic = /italic/i.test(request.style);
   const upright = request.style.replace(/\s*italic/i, "").trim() || "Regular";
-  const candidates: FontRequest[] = styles.map((style) => ({ family: request.family, style }));
-  if (italic) candidates.push({ family: request.family, style: upright });
-  candidates.push({ family: fallbackFamily, style: request.style });
-  if (italic) candidates.push({ family: fallbackFamily, style: upright });
-  candidates.push({ family: fallbackFamily, style: "Regular" });
+  const withStyles = (family: string): FontRequest[] => [
+    ...styles.map((style) => ({ family, style })),
+    ...(italic ? [{ family, style: upright }] : []),
+  ];
+  const families = [
+    request.family,
+    ...(METRIC_TWINS[twinKey(request.family)] ?? []),
+    ...[kindFallback(request.family)].filter((f): f is string => f !== undefined),
+    fallbackFamily,
+  ];
+  const candidates = [
+    ...families.flatMap(withStyles),
+    { family: fallbackFamily, style: "Regular" },
+  ];
   // De-duplicate while keeping order.
   const seen = new Set<string>();
   return candidates.filter((font) => {
