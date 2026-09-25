@@ -1,7 +1,10 @@
 /**
  * Plugin main thread entry point.
  */
+import type { AccessMode } from "@figbridge/protocol";
+import { isAccessMode } from "@figbridge/protocol/access";
 import type { UiToMain } from "../shared/messages.js";
+import { AccessControl, type Answer, APPROVAL_TIMEOUT_MS, type NodeSizer } from "./access.js";
 import { Dispatcher } from "./dispatcher.js";
 import type { HandlerTable } from "./handlers/context.js";
 import * as read from "./handlers/read.js";
@@ -56,15 +59,66 @@ function resolveImage(blob: string): Promise<string> {
   return pending;
 }
 
-const dispatcher = new Dispatcher(handlers, ui, fonts, resolveImage);
+/** Key of the access mode in the document's plugin data: the choice belongs to the file. */
+const ACCESS_KEY = "figbridge.access";
 
-figma.showUI(__html__, { width: 300, height: 220, title: "figbridge", themeColors: true });
+/** Answers the user has not given yet, by request id. */
+const approvals = new Map<string, (answer: Answer) => void>();
+
+const access = new AccessControl({
+  loadMode: () => {
+    const saved = figma.root.getPluginData(ACCESS_KEY);
+    return isAccessMode(saved) ? saved : undefined;
+  },
+  saveMode: (mode: AccessMode) => {
+    figma.root.setPluginData(ACCESS_KEY, mode);
+  },
+  askUser: ({ id, method, summary, risk }) =>
+    new Promise<Answer>((resolve) => {
+      const timer = setTimeout(() => {
+        approvals.delete(id);
+        ui.post({ kind: "approval.closed", id });
+        resolve("deny");
+      }, APPROVAL_TIMEOUT_MS);
+      approvals.set(id, (answer) => {
+        clearTimeout(timer);
+        approvals.delete(id);
+        ui.post({ kind: "approval.closed", id });
+        resolve(answer);
+      });
+      ui.post({
+        kind: "approval.request",
+        id,
+        method,
+        summary,
+        risk: risk === "destructive" ? "destructive" : "write",
+      });
+    }),
+  onChange: (state) => {
+    ui.post({ kind: "access", ...state });
+  },
+});
+
+/** A node and how many layers it holds, for judging deletions. */
+const sizer: NodeSizer = async (id) => {
+  const node = await figma.getNodeByIdAsync(id);
+  if (node === null) return undefined;
+  const descendants = "findAll" in node ? (node as ChildrenMixin).findAll(() => true).length : 0;
+  return { type: node.type, size: 1 + descendants };
+};
+
+const dispatcher = new Dispatcher(handlers, ui, fonts, resolveImage, access, sizer, (message) => {
+  figma.notify(message, { timeout: 1500 });
+});
+
+figma.showUI(__html__, { width: 320, height: 460, title: "figbridge", themeColors: true });
 ui.post({
   kind: "hello-info",
   file: figma.root.name,
   editorType: figma.editorType,
   pluginVersion: __PLUGIN_VERSION__,
 });
+ui.post({ kind: "access", mode: access.mode, paused: access.paused });
 
 figma.ui.onmessage = (message: UiToMain) => {
   if (ui.handleReply(message)) return;
@@ -74,6 +128,19 @@ figma.ui.onmessage = (message: UiToMain) => {
       return;
     case "cancel":
       dispatcher.cancel(message.id);
+      return;
+    case "access.set":
+      access.setMode(message.mode);
+      return;
+    case "pause.set":
+      access.setPaused(message.paused);
+      return;
+    case "approval.answer":
+      approvals.get(message.id)?.(message.answer);
+      return;
+    case "stop":
+      dispatcher.cancelAll();
+      for (const answer of approvals.values()) answer("deny");
       return;
     case "storage.set":
       void figma.clientStorage.setAsync(message.key, message.value);

@@ -2,12 +2,14 @@
  * What every method handler receives, and the handler signature.
  */
 import type { MethodName, MethodParamsParsed, MethodResult } from "@figbridge/protocol";
+import type { AccessControl } from "../access.js";
 import type { FontLoader } from "../render/fonts.js";
 import type { ImageResolver } from "../render/paints.js";
 import type { UiBridge } from "../ui-bridge.js";
 
 export interface HandlerContext {
   ui: UiBridge;
+  access: AccessControl;
   fonts: FontLoader;
   images: ImageResolver;
   /** Throws a CANCELLED error when the hub cancelled this request. */

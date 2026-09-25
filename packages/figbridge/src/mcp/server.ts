@@ -22,7 +22,10 @@ export function createMcpServer(
       instructions:
         "figbridge reads and edits the Figma file open in Figma Desktop with the figbridge plugin running. " +
         "Start with figma_file_info or figma_outline; export nodes to look at them. " +
-        "Changes are live for everyone viewing the file — confirm destructive edits with the user.",
+        "Changes are live for everyone viewing the file — confirm destructive edits with the user. " +
+        "The user sets agent access in the plugin window (figma_file_info shows it): in Ask mode every change " +
+        "waits for their approval, in Auto only destructive ones do. DENIED means they declined — do not retry " +
+        "unchanged, ask what they want; READ_ONLY means the file is read-only for agents; PAUSED means wait.",
     },
   );
 

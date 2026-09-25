@@ -7,6 +7,7 @@
  */
 import { SceneNodeSchema, SlideSchema } from "@figbridge/scene";
 import { z } from "zod";
+import { ACCESS_MODES } from "./access.js";
 
 /** Figma node id, e.g. "12:34" (URL form "12-34" is normalized by the hub). */
 export const NodeIdSchema = z
@@ -31,6 +32,8 @@ const Page = z.object({ id: z.string(), name: z.string(), current: z.boolean() }
 const Cursor = z.string().max(256);
 
 /** Timeouts (ms), innermost shortest: plugin work < hub request < MCP call. */
+export const AccessModeSchema = z.enum(ACCESS_MODES);
+
 export const TIMEOUTS = {
   read: 15_000,
   write: 30_000,
@@ -50,13 +53,17 @@ export interface MethodSpec {
 
 export const METHODS = {
   "session.info": {
-    summary: "File, editor, current page and selection size of the connected plugin.",
+    summary:
+      "File, editor, current page, selection size, and the agent access mode the user set in the plugin.",
     params: z.object({}),
     result: z.object({
       file: z.string(),
       editorType: z.string(),
       page: Page,
       selectionCount: z.number().int().nonnegative(),
+      // Optional: plugins before access modes do not report them.
+      access: AccessModeSchema.optional(),
+      paused: z.boolean().optional(),
     }),
     mutates: false,
     timeoutMs: TIMEOUTS.read,

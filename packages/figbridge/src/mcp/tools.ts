@@ -111,7 +111,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     name: "figma_file_info",
     title: "Current file, page and selection",
     description:
-      "File name, editor type (figma/slides), current page and how many nodes are selected.",
+      "File name, editor type (figma/slides), current page, how many nodes are selected, and the agent access mode the user chose in the plugin (read-only, ask, auto, unrestricted) and whether they paused the agent.",
     input: z.object({ session: Session }),
     annotations: READ,
     run: async ({ session }, { client, signal }) => [

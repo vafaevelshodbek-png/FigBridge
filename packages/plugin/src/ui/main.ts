@@ -4,6 +4,7 @@
  */
 import type { Hello, Message } from "@figbridge/protocol";
 import { type MainToUi, STORAGE_KEYS, type UiToMain } from "../shared/messages.js";
+import { AgentPanel } from "./agent-panel.js";
 import { Connection, type ConnectionState } from "./connection.js";
 
 declare const __HUB_PORT__: number;
@@ -26,6 +27,20 @@ const statusEl = element("status", HTMLElement);
 const detailEl = element("detail", HTMLElement);
 const pairForm = element("pair", HTMLFormElement);
 const tokenInput = element("token", HTMLInputElement);
+const panel = new AgentPanel(
+  {
+    mode: element("mode", HTMLSelectElement),
+    danger: element("danger", HTMLElement),
+    pause: element("pause", HTMLButtonElement),
+    stop: element("stop", HTMLButtonElement),
+    busy: element("busy", HTMLElement),
+    approvals: element("approvals", HTMLElement),
+    activity: element("activity", HTMLElement),
+  },
+  (message) => {
+    toMain(message);
+  },
+);
 
 let token: string | null = null;
 let info: { file: string; editorType: string; pluginVersion: string } | undefined;
@@ -191,7 +206,7 @@ function relayBlobs(message: Extract<MainToUi, { kind: "blob.get" | "blob.put" }
 
 window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
   const message = event.data.pluginMessage;
-  if (message === undefined) return;
+  if (message === undefined || panel.handle(message)) return;
   switch (message.kind) {
     case "hello-info":
       info = {
@@ -224,6 +239,11 @@ window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
       storageWaiters.get(message.ticket)?.(message.value);
       storageWaiters.delete(message.ticket);
       return;
+    case "access":
+    case "approval.request":
+    case "approval.closed":
+    case "activity":
+      return; // handled by the agent panel above
   }
 };
 

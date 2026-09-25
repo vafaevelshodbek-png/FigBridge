@@ -128,3 +128,14 @@ describe("method catalog", () => {
     );
   });
 });
+
+describe("access constants", () => {
+  it("MUTATING_METHODS is exactly the methods that mutate", async () => {
+    const { METHODS, MUTATING_METHODS } = await import("../src/index.js");
+    const mutating = Object.entries(METHODS)
+      .filter(([, spec]) => spec.mutates)
+      .map(([name]) => name)
+      .sort();
+    expect([...MUTATING_METHODS].sort()).toEqual(mutating);
+  });
+});

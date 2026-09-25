@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Closed set of error codes shared by the hub, the plugin, the CLI and MCP tools.
- * Adding a code is a protocol change: document it in `docs/protocol.md`.
+ * Adding a code is a protocol change: document it in docs/adr/0002-websocket-hub-and-protocol.md.
  */
 export const ERROR_CODES = [
   /** Pairing token missing or wrong. */
@@ -31,8 +31,12 @@ export const ERROR_CODES = [
   "IMAGE_INVALID",
   /** The operation is not available in this editor (e.g. createPage in Figma Slides). */
   "UNSUPPORTED_IN_EDITOR",
-  /** The server runs in read-only mode and the method mutates the document. */
+  /** The method mutates the document and the hub or the file is read-only for agents. */
   "READ_ONLY",
+  /** The user declined the change in the plugin, or did not answer in time. */
+  "DENIED",
+  /** The user paused the agent in the plugin; nothing runs until they resume. */
+  "PAUSED",
   /** A message or blob exceeds the configured size limit. */
   "PAYLOAD_TOO_LARGE",
   /** The input document could not be parsed. */

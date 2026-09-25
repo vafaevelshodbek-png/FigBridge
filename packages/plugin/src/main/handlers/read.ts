@@ -9,12 +9,14 @@ function currentPage() {
   return { id: figma.currentPage.id, name: figma.currentPage.name, current: true };
 }
 
-export const sessionInfo: Handler<"session.info"> = () =>
+export const sessionInfo: Handler<"session.info"> = (_params, ctx) =>
   Promise.resolve({
     file: figma.root.name,
     editorType: figma.editorType,
     page: currentPage(),
     selectionCount: figma.currentPage.selection.length,
+    access: ctx.access.mode,
+    paused: ctx.access.paused,
   });
 
 export const pageList: Handler<"page.list"> = () =>

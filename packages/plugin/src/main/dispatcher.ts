@@ -3,6 +3,8 @@
  * reports progress and caches results of idempotent retries.
  */
 import type { MethodName, Request, Response } from "@figbridge/protocol";
+import { MUTATING_METHODS } from "@figbridge/protocol/access";
+import type { AccessControl, NodeSizer } from "./access.js";
 import { type HandlerContext, type HandlerTable, PluginError } from "./handlers/context.js";
 import type { FontLoader } from "./render/fonts.js";
 import type { ImageResolver } from "./render/paints.js";
@@ -13,6 +15,7 @@ const IDEMPOTENCY_CACHE_SIZE = 64;
 
 export class Dispatcher {
   readonly #cancelled = new Set<string>();
+  readonly #running = new Set<string>();
   readonly #idempotent = new Map<string, Response>();
 
   constructor(
@@ -20,10 +23,18 @@ export class Dispatcher {
     private readonly ui: UiBridge,
     private readonly fonts: FontLoader,
     private readonly images: ImageResolver,
+    private readonly access: AccessControl,
+    private readonly sizer: NodeSizer,
+    private readonly notify: (message: string) => void = () => undefined,
   ) {}
 
   cancel(id: string): void {
     this.#cancelled.add(id);
+  }
+
+  /** Cancel everything in flight (the Stop button). */
+  cancelAll(): void {
+    for (const id of this.#running) this.#cancelled.add(id);
   }
 
   async handle(request: Request): Promise<void> {
@@ -33,8 +44,18 @@ export class Dispatcher {
       this.ui.post({ kind: "response", response: { ...cached, id: request.id } });
       return;
     }
+    this.#running.add(request.id);
+    this.#activity(request, "running");
     const response = await this.#execute(request);
+    this.#running.delete(request.id);
     this.#cancelled.delete(request.id);
+    if (response.ok) {
+      this.#activity(request, "done");
+      if (mutates(request.method)) this.notify(`figbridge: ${request.method} done`);
+    } else {
+      const refused = ["READ_ONLY", "DENIED", "PAUSED"].includes(response.error.code);
+      this.#activity(request, refused ? "refused" : "failed", response.error.message);
+    }
     if (key !== undefined && response.ok) this.#remember(key, response);
     this.ui.post({ kind: "response", response });
   }
@@ -48,6 +69,7 @@ export class Dispatcher {
     }
     const ctx: HandlerContext = {
       ui: this.ui,
+      access: this.access,
       fonts: this.fonts,
       images: this.images,
       checkCancelled: () => {
@@ -64,6 +86,7 @@ export class Dispatcher {
       },
     };
     try {
+      await this.access.authorize(request.id, request.method, request.params, this.sizer);
       // Parameters were validated by the hub against the same catalog.
       const result = await (handler as (params: unknown, ctx: HandlerContext) => Promise<unknown>)(
         request.params,
@@ -78,6 +101,22 @@ export class Dispatcher {
         return failure(request.id, "FONT_MISSING", message);
       return failure(request.id, "INTERNAL", message);
     }
+  }
+
+  #activity(
+    request: Request,
+    status: "running" | "done" | "failed" | "refused",
+    detail?: string,
+  ): void {
+    this.ui.post({
+      kind: "activity",
+      entry: {
+        id: request.id,
+        method: request.method,
+        status,
+        ...(detail === undefined ? {} : { detail }),
+      },
+    });
   }
 
   #remember(key: string, response: Response): void {
@@ -97,9 +136,16 @@ const KNOWN_CODES = new Set([
   "FONT_MISSING",
   "IMAGE_INVALID",
   "UNSUPPORTED_IN_EDITOR",
+  "READ_ONLY",
+  "DENIED",
+  "PAUSED",
   "PAYLOAD_TOO_LARGE",
   "INTERNAL",
 ]);
+
+function mutates(method: string): boolean {
+  return MUTATING_METHODS.has(method);
+}
 
 function failure(id: string, code: string, message: string): Response {
   const safeCode = (KNOWN_CODES.has(code) ? code : "INTERNAL") as "INTERNAL";

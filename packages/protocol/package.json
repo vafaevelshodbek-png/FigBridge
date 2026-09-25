@@ -10,13 +10,18 @@
       "@figbridge/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./access": {
+      "@figbridge/source": "./src/access.ts",
+      "types": "./dist/access.d.mts",
+      "import": "./dist/access.mjs"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --clean"
+    "build": "tsdown src/index.ts src/access.ts --format esm --dts --clean"
   },
   "dependencies": {
     "@figbridge/scene": "workspace:*",

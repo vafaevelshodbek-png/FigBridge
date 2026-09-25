@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { importPdf } from "@figbridge/import-pdf";
 import { importPptx } from "@figbridge/import-pptx";
-import { BridgeError, type MethodResult } from "@figbridge/protocol";
+import { APPROVAL_TIMEOUT_MS, BridgeError, type MethodResult } from "@figbridge/protocol";
 import { ulid } from "ulid";
 import type { HubClient } from "./client.js";
 
@@ -28,8 +28,8 @@ export interface ImportDeckResult {
   warnings: string[];
 }
 
-/** A slide can take long: many nodes, image decoding in Figma. */
-const SLIDE_TIMEOUT_MS = 180_000;
+/** A slide can take long (many nodes, image decoding in Figma), after the user approves it. */
+const SLIDE_TIMEOUT_MS = 180_000 + APPROVAL_TIMEOUT_MS;
 
 export async function importDeck(
   client: HubClient,

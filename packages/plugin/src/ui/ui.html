@@ -18,6 +18,24 @@
           border: 1px solid var(--figma-color-border, #d9d9d9); background: transparent; color: inherit; }
   button { padding: 6px 10px; border: 0; border-radius: 5px; font: inherit; font-weight: 600;
            background: var(--figma-color-bg-brand, #0d99ff); color: var(--figma-color-text-onbrand, #fff); }
+  button.secondary { background: var(--figma-color-bg-secondary, #f0f0f0); color: inherit; }
+  button.danger { background: var(--figma-color-bg-danger, #f24822); }
+  #agent { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--figma-color-border, #e6e6e6);
+           display: flex; flex-direction: column; gap: 8px; }
+  .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  label { font-weight: 600; flex: 1; }
+  select { font: inherit; padding: 4px 6px; border-radius: 5px; color: inherit; background: transparent;
+           border: 1px solid var(--figma-color-border, #d9d9d9); }
+  #danger { padding: 6px 8px; border-radius: 5px; font-weight: 600;
+            background: var(--figma-color-bg-danger, #f24822); color: var(--figma-color-text-ondanger, #fff); }
+  #busy { color: var(--figma-color-text-secondary, #6b6b6b); }
+  .approval { padding: 8px; border-radius: 6px; border: 1px solid var(--figma-color-border-brand, #0d99ff); }
+  .approval.destructive { border-color: var(--figma-color-border-danger, #f24822); }
+  .approval p { margin: 0 0 6px; }
+  #activity { margin: 0; padding: 0; list-style: none; max-height: 120px; overflow: auto;
+              color: var(--figma-color-text-secondary, #6b6b6b); font-size: 11px; }
+  #activity li[data-status="failed"], #activity li[data-status="refused"] {
+    color: var(--figma-color-text-danger, #f24822); }
 </style>
 </head>
 <body>
@@ -27,6 +45,25 @@
     <input id="token" autocomplete="off" spellcheck="false" placeholder="Pairing token" aria-label="Pairing token" />
     <button type="submit">Pair</button>
   </form>
+  <section id="agent" aria-label="Agent">
+    <div class="row">
+      <label for="mode">Agent access</label>
+      <select id="mode">
+        <option value="read-only">Read only</option>
+        <option value="ask">Ask before changes</option>
+        <option value="auto">Auto (ask if destructive)</option>
+        <option value="unrestricted">Unrestricted</option>
+      </select>
+    </div>
+    <div id="danger" hidden>Unrestricted: the agent changes anything without asking. Resets to Ask when the plugin reopens.</div>
+    <div class="row">
+      <button id="pause" class="secondary" type="button">Pause agent</button>
+      <button id="stop" class="secondary" type="button">Stop</button>
+      <span id="busy" hidden>Agent is working…</span>
+    </div>
+    <div id="approvals"></div>
+    <ol id="activity" aria-label="Recent agent actions"></ol>
+  </section>
   <script>
     // Runs before the bundle: any uncaught error, even while the bundle starts, is shown here
     // instead of leaving a blank window (the first live test failed exactly like that).

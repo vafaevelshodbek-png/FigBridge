@@ -58,7 +58,7 @@ The importer is a pure function `PDF → Scene` (an editable layer tree); the pl
 
 ## Security
 
-The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding hosts, and requires a pairing token. The plugin executes a fixed set of methods — there is no "run arbitrary code" tool. `figbridge mcp --read-only` disables every mutating tool. See [SECURITY.md](SECURITY.md).
+The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding hosts, and requires a pairing token. The plugin executes a fixed set of methods — there is no "run arbitrary code" tool. In the plugin window you choose how much the agent may do in each file — **Read only**, **Ask before changes** (the default: every change waits for your Allow), **Auto** (only destructive changes such as large deletions or replacing frames are asked) or **Unrestricted** (resets when the plugin reopens) — and you can pause or stop the agent and follow its recent actions. `figbridge mcp --read-only` disables every mutating tool. See [SECURITY.md](SECURITY.md).
 
 ## Limitations
 

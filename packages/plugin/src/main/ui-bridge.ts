@@ -36,6 +36,10 @@ export class UiBridge {
       case "cancel":
       case "storage.set":
       case "storage.get":
+      case "access.set":
+      case "pause.set":
+      case "approval.answer":
+      case "stop":
         return false;
     }
   }

@@ -5,7 +5,7 @@
  * main thread (document access, no network). The UI owns the hub connection and forwards
  * requests; the main thread asks the UI to move bytes over HTTP when it needs images.
  */
-import type { Request, Response } from "@figbridge/protocol";
+import type { AccessMode, Request, Response } from "@figbridge/protocol";
 
 /** UI → main. */
 export type UiToMain =
@@ -14,7 +14,11 @@ export type UiToMain =
   | { kind: "blob.got"; ticket: number; bytes: Uint8Array | null; error?: string }
   | { kind: "blob.put.done"; ticket: number; blob: string | null; error?: string }
   | { kind: "storage.set"; key: string; value: string }
-  | { kind: "storage.get"; ticket: number; key: string };
+  | { kind: "storage.get"; ticket: number; key: string }
+  | { kind: "access.set"; mode: AccessMode }
+  | { kind: "pause.set"; paused: boolean }
+  | { kind: "approval.answer"; id: string; answer: "once" | "session" | "deny" }
+  | { kind: "stop" };
 
 /** Main → UI. */
 export type MainToUi =
@@ -23,7 +27,25 @@ export type MainToUi =
   | { kind: "progress"; id: string; done: number; total?: number }
   | { kind: "blob.get"; ticket: number; blob: string }
   | { kind: "blob.put"; ticket: number; bytes: Uint8Array; mimeType: string }
-  | { kind: "storage.value"; ticket: number; value: string | null };
+  | { kind: "storage.value"; ticket: number; value: string | null }
+  | { kind: "access"; mode: AccessMode; paused: boolean }
+  | {
+      kind: "approval.request";
+      id: string;
+      method: string;
+      summary: string;
+      risk: "write" | "destructive";
+    }
+  | { kind: "approval.closed"; id: string }
+  | { kind: "activity"; entry: ActivityEntry };
+
+/** One line of the plugin's activity feed. */
+export interface ActivityEntry {
+  id: string;
+  method: string;
+  status: "running" | "done" | "failed" | "refused";
+  detail?: string;
+}
 
 /** Keys persisted in `figma.clientStorage` on behalf of the UI. */
 export const STORAGE_KEYS = { token: "figbridge.token" } as const;

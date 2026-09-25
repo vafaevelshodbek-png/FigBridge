@@ -61,6 +61,12 @@ describe.skipIf(!built && process.env["CI"] === undefined)("built bundles", () =
     expect(ui().match(/<script>/g)).toHaveLength(1);
   });
 
+  it("the main thread bundles no schemas or Node modules (the sandbox has neither)", () => {
+    expect(main()).not.toMatch(/node:crypto|ZodError|\$ZodType/);
+    // A regression that pulls zod and the schemas in shows up as a jump in size.
+    expect(main().length).toBeLessThan(60_000);
+  });
+
   it("the main thread touches no browser globals (the sandbox has none)", () => {
     // A global reference, not a substring of a string such as the "document.outline" method.
     expect(main()).not.toMatch(/(?<![\w$."'])(document|window|localStorage|crypto)\b(?!["'])/);

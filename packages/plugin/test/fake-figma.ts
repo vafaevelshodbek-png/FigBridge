@@ -287,6 +287,16 @@ export class FakeNode {
 
   removed = false;
   selection: FakeNode[] = [];
+  readonly pluginData = new Map<string, string>();
+
+  getPluginData(key: string): string {
+    return this.pluginData.get(key) ?? "";
+  }
+
+  setPluginData(key: string, value: string): void {
+    if (typeof value !== "string") fail("setPluginData expects a string");
+    this.pluginData.set(key, value);
+  }
   rotation = 0;
 
   remove(): void {

@@ -6,6 +6,7 @@
  * session and applies the method's timeout.
  */
 import {
+  APPROVAL_TIMEOUT_MS,
   BridgeError,
   type Hello,
   METHODS,
@@ -134,7 +135,8 @@ export class Hub {
     }
     const session = this.#resolve(options.session);
     const raw = await session.call(method, parsed.data, {
-      timeoutMs: options.timeoutMs ?? spec.timeoutMs,
+      // A change may first wait for the user's approval in the plugin.
+      timeoutMs: options.timeoutMs ?? spec.timeoutMs + (spec.mutates ? APPROVAL_TIMEOUT_MS : 0),
       signal: options.signal,
       idempotencyKey: options.idempotencyKey,
       onProgress: options.onProgress,
