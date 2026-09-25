@@ -114,12 +114,7 @@ function levelChain(
 }
 
 /** Resolved `bodyPr`: own attributes over layout/master placeholder ones. */
-function bodyProps(
-  ctx: SlideContext,
-  shape: XmlElement,
-  ref: PlaceholderRef | undefined,
-  txBody: XmlElement,
-) {
+function bodyProps(ctx: SlideContext, ref: PlaceholderRef | undefined, txBody: XmlElement) {
   const chain = [
     ...inheritanceChain(ctx, ref).map((s) => child(child(s, "txBody"), "bodyPr")),
     child(txBody, "bodyPr"),
@@ -170,7 +165,7 @@ export function textNode(
 ): TextNode | undefined {
   const txBody = child(shape, "txBody");
   if (txBody === undefined) return undefined;
-  const body = bodyProps(ctx, shape, ref, txBody);
+  const body = bodyProps(ctx, ref, txBody);
   // Theme font colour from the shape style (`fontRef`) is the base run colour.
   const styleColor = resolveColor(child(child(shape, "style"), "fontRef"), ctx.colors);
 

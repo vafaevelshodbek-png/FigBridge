@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { type SceneNode, SceneSchema } from "@figbridge/scene";
 import { describe, expect, it } from "vitest";
-import { niceMax } from "../src/chart.js";
+import { niceMax, slicePath } from "../src/chart.js";
 import { applyTransforms, hexToRgb } from "../src/color.js";
 import { parseFontStyle } from "../src/fonts.js";
 import { geometryOf } from "../src/geometry.js";
@@ -138,5 +138,17 @@ describe("importPptx", () => {
 
   it("rejects files that are not presentations", async () => {
     await expect(importPptx(new Uint8Array([1, 2, 3]), "x.pptx")).rejects.toThrow(TypeError);
+  });
+});
+
+describe("pie slices", () => {
+  it("draws a quarter slice from 12 o'clock clockwise", () => {
+    expect(slicePath(10, 0, -90, 90)).toBe("M 10 10 L 10 0 A 10 10 0 0 1 20 10 Z");
+  });
+  it("uses the large-arc flag past 180 degrees", () => {
+    expect(slicePath(10, 0, -90, 270)).toContain("A 10 10 0 1 1");
+  });
+  it("cuts the doughnut hole back along the inner radius", () => {
+    expect(slicePath(10, 5, -90, 90)).toBe("M 10 0 A 10 10 0 0 1 20 10 L 15 10 A 5 5 0 0 0 10 5 Z");
   });
 });
