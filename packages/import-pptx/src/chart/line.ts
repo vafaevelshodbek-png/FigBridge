@@ -2,63 +2,32 @@
  * Line charts: one stroked vector per series through the category centres.
  */
 import type { SceneNode } from "@figbridge/scene";
-import { ptToPx, round, type SlideContext } from "../context.js";
-import type { Box } from "../transform.js";
-import type { XmlElement } from "../xml.js";
+import { ptToPx, type SlideContext } from "../context.js";
 import type { ValueScale } from "./axis.js";
-import { axisLine, categoryLabels } from "./layout.js";
 import type { Series } from "./series.js";
-import { DEFAULT_BAR, type Plot } from "./style.js";
+import { DEFAULT_BAR, type Plot, polyline } from "./style.js";
 
-/** Line charts: one stroked vector per series through the category centres. */
 export function lineNodes(
   ctx: SlideContext,
-  chartPart: XmlElement | undefined,
   series: Series[],
-  categories: string[],
-  frame: Box,
+  categories: number,
   plot: Plot,
   scale: ValueScale,
 ): SceneNode[] {
-  if (series.length === 0 || categories.length === 0) return [];
-  const top = scale.max;
-  const step = (plot.right - plot.left) / categories.length;
+  if (series.length === 0 || categories === 0) return [];
+  const step = (plot.right - plot.left) / categories;
   const nodes: SceneNode[] = [];
   for (const s of series) {
     const points: [number, number][] = [];
-    categories.forEach((_, ci) => {
+    for (let ci = 0; ci < categories; ci++) {
       const value = s.values.get(ci);
       if (value !== undefined)
         points.push([
           plot.left + step * (ci + 0.5),
-          plot.bottom - ((plot.bottom - plot.top) * value) / top,
+          plot.bottom - ((plot.bottom - plot.top) * value) / scale.max,
         ]);
-    });
-    if (points.length < 2) continue;
-    const x0 = Math.min(...points.map((p) => p[0]));
-    const y0 = Math.min(...points.map((p) => p[1]));
-    const x1 = Math.max(...points.map((p) => p[0]));
-    const y1 = Math.max(...points.map((p) => p[1]));
-    const d = points
-      .map(
-        ([x, y], i) => `${i === 0 ? "M" : "L"} ${String(round(x - x0))} ${String(round(y - y0))}`,
-      )
-      .join(" ");
-    nodes.push({
-      id: ctx.nextId(),
-      name: s.name || "series",
-      type: "vector",
-      x: round(x0),
-      y: round(y0),
-      w: round(Math.max(0.01, x1 - x0)),
-      h: round(Math.max(0.01, y1 - y0)),
-      rotation: 0,
-      flipX: false,
-      flipY: false,
-      opacity: 1,
-      visible: true,
-      paths: [{ d, fillRule: "nonzero" }],
-      fills: [],
+    }
+    const line = polyline(ctx, s.name || "series", points, {
       strokes: [
         {
           paint: s.fill.type === "image" ? DEFAULT_BAR : s.fill,
@@ -69,8 +38,7 @@ export function lineNodes(
         },
       ],
     });
+    if (line !== undefined) nodes.push(line);
   }
-  nodes.push(...categoryLabels(ctx, chartPart, categories, frame, plot));
-  nodes.push(...axisLine(ctx, chartPart, frame, plot));
   return nodes;
 }

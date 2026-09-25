@@ -9,6 +9,8 @@ import { accent, firstPaint, type TextStyle, textStyle } from "./style.js";
 export interface Series {
   name: string;
   values: Map<number, number>;
+  /** Scatter charts: x per point index (`c:xVal`). */
+  xValues?: Map<number, number>;
   fill: Paint;
   /** Per-point fills (`c:dPt`), e.g. pie slices. */
   pointFills: Map<number, Paint>;
@@ -17,9 +19,8 @@ export interface Series {
 
 export function readSeries(ctx: SlideContext, plot: XmlElement, target: string): Series[] {
   return childrenOf(plot, "ser").map((ser, index) => {
-    const values = new Map<number, number>();
-    for (const pt of findAll(child(ser, "val"), "pt"))
-      values.set(num(pt, "idx", 0), Number(child(pt, "v")?.text ?? "0"));
+    const values = numbers(child(ser, "val") ?? child(ser, "yVal"));
+    const xVal = child(ser, "xVal");
     const pointFills = new Map<number, Paint>();
     for (const dPt of childrenOf(ser, "dPt")) {
       const paint = firstPaint(ctx, target, child(dPt, "spPr"));
@@ -38,6 +39,17 @@ export function readSeries(ctx: SlideContext, plot: XmlElement, target: string):
         accent(ctx, num(child(ser, "idx"), "val", index)),
       pointFills,
       label: showValue ? textStyle(ctx, labels) : undefined,
+      ...(xVal === undefined ? {} : { xValues: numbers(xVal) }),
     };
   });
+}
+
+/** Cached numbers of a `c:val`/`c:xVal`/`c:yVal` by point index; non-numbers are skipped. */
+function numbers(el: XmlElement | undefined): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const pt of findAll(el, "pt")) {
+    const value = Number(child(pt, "v")?.text);
+    if (Number.isFinite(value)) out.set(num(pt, "idx", 0), value);
+  }
+  return out;
 }

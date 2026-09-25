@@ -1,7 +1,7 @@
 /**
  * Shared chart drawing: text styles, series colours, and the rectangle/label nodes every chart type emits.
  */
-import type { Paint, SceneNode, TextNode } from "@figbridge/scene";
+import type { Paint, SceneNode, Stroke, TextNode, VectorNode } from "@figbridge/scene";
 import { resolveColor } from "../color.js";
 import { ptToPx, resolveTypeface, round, type SlideContext } from "../context.js";
 import { fillElement, paintsOf } from "../fill.js";
@@ -142,5 +142,42 @@ export function label(
     align,
     verticalAlign: "top",
     sizing: "fixed",
+  };
+}
+
+/** A vector through `points` (slide coordinates), open or closed. */
+export function polyline(
+  ctx: SlideContext,
+  name: string,
+  points: readonly [number, number][],
+  options: { closed?: boolean; fills?: Paint[]; strokes?: Stroke[] },
+): VectorNode | undefined {
+  if (points.length < 2) return undefined;
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  const d =
+    points
+      .map(
+        ([x, y], i) => `${i === 0 ? "M" : "L"} ${String(round(x - x0))} ${String(round(y - y0))}`,
+      )
+      .join(" ") + (options.closed === true ? " Z" : "");
+  return {
+    id: ctx.nextId(),
+    name,
+    type: "vector",
+    x: round(x0),
+    y: round(y0),
+    w: round(Math.max(0.01, Math.max(...xs) - x0)),
+    h: round(Math.max(0.01, Math.max(...ys) - y0)),
+    rotation: 0,
+    flipX: false,
+    flipY: false,
+    opacity: 1,
+    visible: true,
+    paths: [{ d, fillRule: "nonzero" }],
+    fills: options.fills ?? [],
+    strokes: options.strokes ?? [],
   };
 }

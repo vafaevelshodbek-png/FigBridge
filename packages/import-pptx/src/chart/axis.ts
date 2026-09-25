@@ -89,13 +89,12 @@ export function valueScale(
  */
 export function valueAxis(
   ctx: SlideContext,
-  chartPart: XmlElement | undefined,
+  axis: XmlElement | undefined,
   scale: ValueScale,
   plot: Plot,
   horizontal: boolean,
   base: TextStyle,
 ): { gridlines: () => SceneNode[]; labels: () => SceneNode[] } {
-  const axis = find(chartPart, "valAx");
   const deleted = attr(child(axis, "delete"), "val") === "1";
   const shown = !deleted && attr(child(axis, "tickLblPos"), "val") !== "none";
   const style = textStyle(ctx, axis) ?? base;

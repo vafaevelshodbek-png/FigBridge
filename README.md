@@ -9,7 +9,7 @@ figbridge connects an AI agent (Claude Code, Claude Desktop, Cursor, VS Code, an
 - logos, icons and lines become vectors;
 - photos become image layers at source resolution, cropped and rounded like the original;
 - text becomes editable paragraphs with its fonts, sizes and colours;
-- PowerPoint tables stay tables of cells, and charts (bar, column, line, pie, doughnut) are rebuilt as shapes;
+- PowerPoint tables stay tables of cells, and charts (bar, column, line, area, scatter, pie, doughnut and combinations) are rebuilt as shapes with their axes;
 - everything inside a card is grouped with the card.
 
 The importers are tested against real decks with golden images on every change; see [Limitations](#limitations) for what is not covered yet.
@@ -62,7 +62,7 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 
 ## Limitations
 
-- PPTX: chart types other than bar/column, line, pie and doughnut (area, scatter, radar, combo…) are skipped with a warning. SmartArt is imported from the drawing PowerPoint stores with it; files saved without one (rare) skip the diagram with a warning.
+- PPTX: radar, bubble, stock and surface charts are skipped with a warning (bar, column, line, area, scatter, pie, doughnut and their combinations are rebuilt). SmartArt is imported from the drawing PowerPoint stores with it; files saved without one (rare) skip the diagram with a warning.
 - Brand fonts that are not installed fall back to Inter with the same weight; lines can be slightly longer.
 - Rotated text in PDFs is skipped; vectors drawn on top of a photo inside the same image stay part of the photo.
 - Figma Desktop is required (browser Figma cannot load development plugins).

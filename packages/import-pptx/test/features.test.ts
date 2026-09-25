@@ -288,6 +288,63 @@ describe("charts", () => {
     expect(line?.type === "vector" ? line.strokes[0]?.weight : 0).toBeGreaterThan(0);
   });
 
+  it("stacked areas: one closed shape per series, the second on top of the first", async () => {
+    const two =
+      series("A", [1, 2, 3]) +
+      series("B", [2, 2, 2]).replace('<c:idx val="0"/>', '<c:idx val="1"/>');
+    const { nodes } = await nodesOf(
+      frame,
+      chart(`<c:areaChart><c:grouping val="stacked"/>${two}</c:areaChart>`),
+    );
+    const areas = nodes.filter(
+      (n): n is Extract<SceneNode, { type: "vector" }> => n.type === "vector",
+    );
+    expect(areas).toHaveLength(2);
+    for (const area of areas) expect(area.paths[0]?.d.endsWith(" Z")).toBe(true);
+    const [a, b] = areas;
+    // B sits above A: its top edge is higher on the slide.
+    if (a !== undefined && b !== undefined) expect(b.y).toBeLessThan(a.y);
+  });
+
+  it("bar + line combinations share one value axis", async () => {
+    const plot =
+      `<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/>${series("Sales", [10, 20])}</c:barChart>` +
+      `<c:lineChart>${series("Target", [15, 40]).replace('<c:idx val="0"/>', '<c:idx val="1"/>')}</c:lineChart>`;
+    const { nodes } = await nodesOf(frame, chart(plot));
+    const bars = nodes.filter((n) => n.type === "rect" && n.name.includes("·"));
+    const line = nodes.find((n) => n.type === "vector");
+    expect(bars).toHaveLength(2);
+    expect(line).toBeDefined();
+    // The axis reaches the line's 40, so the tallest bar (20) is about half of it.
+    const tallest = Math.max(...bars.map((b) => (b.type === "rect" ? b.h : 0)));
+    const plotHeight = line?.type === "vector" ? line.h / ((40 - 15) / 45) : 0;
+    expect(tallest / plotHeight).toBeCloseTo(20 / 45, 1);
+  });
+
+  it("scatter: markers on two value axes, lines when the style has them", async () => {
+    const xy =
+      `<c:ser><c:idx val="0"/><c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>S</c:v></c:pt></c:strCache></c:strRef></c:tx>` +
+      `<c:xVal><c:numRef><c:numCache><c:pt idx="0"><c:v>1</c:v></c:pt><c:pt idx="1"><c:v>4</c:v></c:pt><c:pt idx="2"><c:v>9</c:v></c:pt></c:numCache></c:numRef></c:xVal>` +
+      `<c:yVal><c:numRef><c:numCache><c:pt idx="0"><c:v>2</c:v></c:pt><c:pt idx="1"><c:v>8</c:v></c:pt><c:pt idx="2"><c:v>5</c:v></c:pt></c:numCache></c:numRef></c:yVal></c:ser>`;
+    const axes = `<c:valAx><c:axPos val="b"/></c:valAx><c:valAx><c:axPos val="l"/></c:valAx>`;
+    const deck = (style: string) => ({
+      rels: `<Relationship Id="rChart" Target="../charts/chart1.xml"/>`,
+      parts: {
+        "ppt/charts/chart1.xml": `<c:chartSpace><c:chart><c:plotArea><c:scatterChart><c:scatterStyle val="${style}"/>${xy}</c:scatterChart>${axes}</c:plotArea></c:chart></c:chartSpace>`,
+      },
+    });
+    const markers = await nodesOf(frame, deck("marker"));
+    expect(markers.nodes.filter((n) => n.type === "ellipse")).toHaveLength(3);
+    expect(markers.nodes.some((n) => n.type === "vector")).toBe(false);
+    const withLines = await nodesOf(frame, deck("lineMarker"));
+    expect(withLines.nodes.filter((n) => n.type === "vector")).toHaveLength(1);
+    const dots = withLines.nodes.filter((n) => n.type === "ellipse");
+    // x = 1, 4, 9 on a 0..10 axis: the gaps grow 3 : 5.
+    const [p1, p2, p3] = dots.map((d) => d.x);
+    if (p1 !== undefined && p2 !== undefined && p3 !== undefined)
+      expect((p3 - p2) / (p2 - p1)).toBeCloseTo(5 / 3, 1);
+  });
+
   it("unsupported chart types are reported, not guessed", async () => {
     const { nodes, warnings } = await nodesOf(
       frame,

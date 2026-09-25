@@ -3,21 +3,17 @@
  */
 import type { SceneNode } from "@figbridge/scene";
 import type { SlideContext } from "../context.js";
-import type { Box } from "../transform.js";
 import { attr, child, num, type XmlElement } from "../xml.js";
 import type { ValueScale } from "./axis.js";
-import { axisLine, categoryLabels } from "./layout.js";
 import type { Series } from "./series.js";
 import { formatValue, label, type Plot, rect } from "./style.js";
 
 /** Bar and column charts: clustered, stacked and 100% stacked. */
 export function barNodes(
   ctx: SlideContext,
-  chartPart: XmlElement | undefined,
   bar: XmlElement,
   series: Series[],
   categories: string[],
-  frame: Box,
   plot: Plot,
   scale: ValueScale,
 ): SceneNode[] {
@@ -82,7 +78,5 @@ export function barNodes(
       if (stacked) offset += length;
     });
   });
-  if (!horizontal) nodes.push(...categoryLabels(ctx, chartPart, categories, frame, plot));
-  nodes.push(...axisLine(ctx, chartPart, frame, plot));
   return nodes;
 }
