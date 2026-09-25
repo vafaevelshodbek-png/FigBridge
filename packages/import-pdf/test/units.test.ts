@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseFontName } from "../src/fonts.js";
-import type { Glyph } from "../src/interpret.js";
 import { multiply } from "../src/matrix.js";
 import { asRoundedRect, decodePath } from "../src/path.js";
+import type { Glyph } from "../src/primitives.js";
 import { buildLines, buildParagraphs, repairLigatures } from "../src/text.js";
 
 const I = [1, 0, 0, 1, 0, 0] as const;

@@ -18,10 +18,11 @@ import { getDocument, type PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs"
 import { groupCards } from "./cards.js";
 import { dedupe, gradientRect, isInvisible, isPageRect } from "./classify.js";
 import { compositeLayer } from "./compositor.js";
-import { interpret, type PathPrimitive, type Primitive } from "./interpret.js";
+import { interpret } from "./interpret.js";
 import { toMatrix } from "./matrix.js";
 import { type Box, bounds } from "./path.js";
 import { fontName, PDFJS_ASSETS, rasterSources } from "./pdfjs.js";
+import type { PathPrimitive, Primitive } from "./primitives.js";
 import { clusterZones, FIGMA_MAX_IMAGE_SIDE, rasterScale } from "./raster.js";
 import { round } from "./round.js";
 import { area, clipBox, intersect, mergeRuns, toRect, toVector, visibleBox } from "./shapes.js";

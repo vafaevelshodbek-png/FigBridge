@@ -5,10 +5,10 @@
 import type { SceneNode } from "@figbridge/scene";
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ShadingIR } from "./compositor.js";
-import type { PathPrimitive, ShadingPrimitive } from "./interpret.js";
 import { apply } from "./matrix.js";
 import { asRoundedRect, type Box } from "./path.js";
 import { getObject } from "./pdfjs.js";
+import type { PathPrimitive, ShadingPrimitive } from "./primitives.js";
 import { round } from "./round.js";
 import { area, intersect } from "./shapes.js";
 

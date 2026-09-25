@@ -7,7 +7,7 @@
  */
 import type { TextNode as SceneTextNode, TextRun } from "@figbridge/scene";
 import { parseFontName } from "./fonts.js";
-import type { Glyph } from "./interpret.js";
+import type { Glyph } from "./primitives.js";
 import { round } from "./round.js";
 
 /** Glyphs belong to the same line when their baselines differ by less than this × size. */

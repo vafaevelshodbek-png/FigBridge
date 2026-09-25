@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { CompositeSources, DecodedImage, ShadingIR } from "./compositor.js";
-import type { Primitive } from "./interpret.js";
+import type { Primitive } from "./primitives.js";
 
 /**
  * pdf.js loads its image decoders (JBIG2, JPEG 2000 — common in scans), CJK character maps

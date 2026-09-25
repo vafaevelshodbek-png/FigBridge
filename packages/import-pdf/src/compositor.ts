@@ -7,15 +7,15 @@
  * primitives: text and vectors drawn over a photo stay separate, editable layers.
  */
 import { type Canvas, createCanvas, ImageData, Path2D, type SKRSContext2D } from "@napi-rs/canvas";
+import type { Matrix } from "./matrix.js";
+import type { Box, Segment } from "./path.js";
 import type {
   ClipPath,
   ImagePrimitive,
   Primitive,
   ShadingPrimitive,
   SoftMask,
-} from "./interpret.js";
-import type { Matrix } from "./matrix.js";
-import type { Box, Segment } from "./path.js";
+} from "./primitives.js";
 
 /** Decoded image as pdf.js provides it. */
 export interface DecodedImage {

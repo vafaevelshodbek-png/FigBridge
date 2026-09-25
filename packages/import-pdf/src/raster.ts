@@ -3,8 +3,8 @@
  * into zones and composited once per zone, at a resolution Figma accepts.
  */
 import type { CompositeSources } from "./compositor.js";
-import type { Primitive } from "./interpret.js";
 import type { Box } from "./path.js";
+import type { Primitive } from "./primitives.js";
 import { intersect } from "./shapes.js";
 
 /** Minimum raster scale: crisp on retina displays even for low-res sources. */

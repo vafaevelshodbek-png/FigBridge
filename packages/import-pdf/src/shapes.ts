@@ -4,8 +4,8 @@
  * of a logo, parts of an icon) are merged into one vector so they move together.
  */
 import type { Paint, RectNode, Stroke, VectorNode } from "@figbridge/scene";
-import type { ClipPath, PathPrimitive } from "./interpret.js";
 import { asRoundedRect, type Box, bounds, subpathCount, toSvgPath } from "./path.js";
+import type { ClipPath, PathPrimitive } from "./primitives.js";
 import { round } from "./round.js";
 
 /** Shapes smaller than this (px, both sides) are candidates for merging into one vector. */
