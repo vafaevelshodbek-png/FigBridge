@@ -6,6 +6,8 @@
  * `alpha` sets opacity. The formulas are the ones the Python prototype used; its output was
  * checked against PowerPoint renders of the same slides.
  */
+
+import { DEGREE, PERCENT } from "./units.js";
 import { attr, num, type XmlElement } from "./xml.js";
 
 /** An sRGB colour with opacity. */
@@ -23,11 +25,6 @@ export interface ColorContext {
   /** Colour map (master `clrMap` or slide override): `tx1` → `dk1`, … */
   readonly map: Readonly<Record<string, string>>;
 }
-
-/** DrawingML fractions are expressed in thousandths of a percent. */
-const PERCENT = 100_000;
-/** Angles are expressed in 60000ths of a degree. */
-const DEGREE = 60_000;
 
 const PRESET_COLORS: Readonly<Record<string, string>> = {
   black: "000000",

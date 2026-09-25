@@ -4,10 +4,8 @@
 import { contentBlobId, type ImagePaint } from "@figbridge/scene";
 import { clamp01 } from "./color.js";
 import type { SlideContext } from "./context.js";
+import { PERCENT } from "./units.js";
 import { attr, child, num, type XmlElement } from "./xml.js";
-
-/** srcRect / alphaModFix values are thousandths of a percent. */
-const PERCENT = 100_000;
 
 type Sniffed = { kind: "raster"; mimeType: string } | { kind: "unsupported"; format: string };
 

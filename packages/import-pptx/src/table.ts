@@ -8,6 +8,7 @@ import { fillElement, paintsOf } from "./fill.js";
 import { cellStyle, findTableStyle, tableFlags } from "./table-styles.js";
 import { textNode } from "./text.js";
 import type { Box } from "./transform.js";
+import { AVERAGE_GLYPH_ADVANCE } from "./units.js";
 import { attr, child, childrenOf, num, type XmlElement } from "./xml.js";
 
 /** Default cell margins (EMU). */
@@ -138,8 +139,6 @@ function margins(tcPr: XmlElement | undefined) {
   };
 }
 
-/** Average glyph advance as a fraction of the font size (sans-serif body text). */
-const AVERAGE_ADVANCE = 0.5;
 /** Line height as a multiple of the font size (PowerPoint single spacing). */
 const LINE = 1.2;
 
@@ -158,7 +157,7 @@ function estimateTextHeight(ctx: SlideContext, tc: XmlElement, width: number): n
         0,
       ) || 1800;
     const size = (sz / 100) * 12_700 * ctx.scale;
-    const lines = Math.max(1, Math.ceil((text.length * size * AVERAGE_ADVANCE) / inner));
+    const lines = Math.max(1, Math.ceil((text.length * size * AVERAGE_GLYPH_ADVANCE) / inner));
     height += lines * size * LINE;
   }
   return height;

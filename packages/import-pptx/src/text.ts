@@ -11,9 +11,9 @@ import { ptToPx, resolveTypeface, round, type SlideContext } from "./context.js"
 import { parseFontStyle } from "./fonts.js";
 import { inheritanceChain, masterTextStyle, type PlaceholderRef } from "./placeholders.js";
 import type { Box } from "./transform.js";
+import { PERCENT } from "./units.js";
 import { attr, child, num, type XmlElement } from "./xml.js";
 
-const PERCENT = 100_000;
 /** Office's default text insets (EMU). */
 const DEFAULT_INSETS = { l: 91_440, t: 45_720, r: 91_440, b: 45_720 } as const;
 /** Office's default font size (hundredths of a point). */

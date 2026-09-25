@@ -5,10 +5,10 @@
 import type { Paint } from "@figbridge/scene";
 import type { ColorContext } from "./color.js";
 import type { Package } from "./package.js";
+import { EMU_PER_POINT } from "./units.js";
 import { attr, child, childrenOf, path, type XmlElement } from "./xml.js";
 
 /** EMU per typographic point (and per pixel of a 1920-wide 16:9 slide at scale 1). */
-export const EMU_PER_POINT = 12_700;
 
 export interface Part {
   /** Absolute part name, e.g. `ppt/slides/slide1.xml`. */

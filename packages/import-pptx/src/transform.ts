@@ -5,10 +5,9 @@
  * (`chOff`/`chExt` child space → group box, then the group's flips and rotation) into slide
  * coordinates. Rotation is clockwise degrees around the box centre, as in both OOXML and Scene.
  */
-import { bool, child, num, type XmlElement } from "./xml.js";
 
-/** OOXML angles: 60000ths of a degree. */
-const DEGREE = 60_000;
+import { DEGREE } from "./units.js";
+import { bool, child, num, type XmlElement } from "./xml.js";
 
 /** A placed box in output pixels. */
 export interface Box {

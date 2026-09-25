@@ -4,10 +4,8 @@
  * local box (0..w, 0..h). Rotation and flips stay on the node, as in Figma.
  */
 import { type CornerRadii, ellipseArcCubics } from "@figbridge/scene";
+import { DEGREE, PERCENT } from "./units.js";
 import { attr, child, childrenOf, num, type XmlElement } from "./xml.js";
-
-const PERCENT = 100_000;
-const DEGREE = 60_000;
 
 export type Geometry =
   | { kind: "rect"; radii: CornerRadii }

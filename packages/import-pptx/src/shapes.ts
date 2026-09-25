@@ -2,7 +2,7 @@
  * Shape tree (`p:spTree`) → Scene nodes, in paint order.
  */
 import type { Paint, SceneNode, Stroke } from "@figbridge/scene";
-import { chartNodes } from "./chart.js";
+import { chartNodes } from "./chart/index.js";
 import { round, type SlideContext } from "./context.js";
 import { fillElement, paintsOf, shapeFill, shapeOutline } from "./fill.js";
 import { geometryOf } from "./geometry.js";

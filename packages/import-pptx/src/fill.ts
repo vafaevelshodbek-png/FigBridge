@@ -10,10 +10,8 @@ import { type Rgba, resolveColor } from "./color.js";
 import type { SlideContext } from "./context.js";
 import { blipFillPaint, storeBlob } from "./images.js";
 import { EMU_PER_PATTERN_PIXEL, patternTile } from "./pattern.js";
+import { DEGREE, PERCENT } from "./units.js";
 import { attr, child, childrenOf, num, type XmlElement } from "./xml.js";
-
-const PERCENT = 100_000;
-const DEGREE = 60_000;
 
 /** Default outline width when neither the shape nor the theme gives one: 0.75 pt. */
 const DEFAULT_LINE_EMU = 9525;
