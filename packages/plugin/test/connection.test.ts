@@ -103,9 +103,11 @@ describe("Connection", () => {
     await vi.waitFor(() => {
       expect(states.at(-1)?.status).toBe("connected");
     });
+    const before = states.length;
     await server?.close();
+    // Full-jitter backoff may retry almost at once, so "waiting" need not still be current.
     await vi.waitFor(() => {
-      expect(states.at(-1)?.status).toBe("waiting");
+      expect(states.slice(before).some((state) => state.status === "waiting")).toBe(true);
     });
     await startHub(port);
     await vi.waitFor(
