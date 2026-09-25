@@ -9,6 +9,8 @@
     "build": "node build.mjs"
   },
   "devDependencies": {
+    "@figbridge/import-pdf": "workspace:*",
+    "@figbridge/import-pptx": "workspace:*",
     "@figbridge/protocol": "workspace:*",
     "@figbridge/scene": "workspace:*",
     "@figma/plugin-typings": "catalog:",

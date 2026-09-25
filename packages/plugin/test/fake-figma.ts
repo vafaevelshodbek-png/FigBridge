@@ -1,0 +1,477 @@
+/**
+ * A strict stand-in for the part of the Figma Plugin API the renderer uses.
+ *
+ * It is not a mock that records calls: it enforces the rules the real API enforces, so a
+ * scene that renders here without errors renders in Figma too. Every rule below comes from
+ * the plugin typings/docs or from a failure seen in real Figma:
+ *  - createImage: PNG/JPEG/GIF only, at most 4096 px per side ("Image is too large");
+ *  - vectorPaths: only absolute M, L, Q, C, Z separated by single spaces;
+ *  - resize: both sides at least 0.01;
+ *  - paints: colour channels and opacity in 0..1, 2×3 finite transforms, stops in 0..1,
+ *    image paints must reference an uploaded image, no unknown keys;
+ *  - text: the node's font, and every font given to setRangeFontName, must be loaded first;
+ *  - numbers are finite everywhere (NaN and Infinity are rejected).
+ */
+import { isFigmaPath } from "@figbridge/scene";
+
+export class FigmaError extends Error {}
+
+const MAX_IMAGE_SIDE = 4096;
+
+function fail(message: string): never {
+  throw new FigmaError(message);
+}
+
+function finite(value: unknown, what: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value))
+    fail(`${what}: expected a finite number, got ${String(value)}`);
+  return value;
+}
+
+function unit(value: unknown, what: string): number {
+  const n = finite(value, what);
+  if (n < 0 || n > 1) fail(`${what}: expected 0..1, got ${String(n)}`);
+  return n;
+}
+
+function onlyKeys(object: object, allowed: readonly string[], what: string): void {
+  const unknown = Object.keys(object).filter((key) => !allowed.includes(key));
+  if (unknown.length > 0) fail(`${what}: unrecognized key(s) ${unknown.join(", ")}`);
+}
+
+function transform(m: unknown, what: string): void {
+  if (!Array.isArray(m) || m.length !== 2) fail(`${what}: expected a 2×3 matrix`);
+  for (const row of m as unknown[]) {
+    if (!Array.isArray(row) || row.length !== 3) fail(`${what}: expected a 2×3 matrix`);
+    for (const value of row as unknown[]) finite(value, what);
+  }
+}
+
+function imageSize(bytes: Uint8Array): { width: number; height: number } {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (bytes.length > 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e) {
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  }
+  if (bytes.length > 10 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) {
+    return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+  }
+  if (bytes.length > 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    // Walk JPEG segments to the first start-of-frame marker.
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) break;
+      const marker = bytes[offset + 1] ?? 0;
+      const length = view.getUint16(offset + 2);
+      if (
+        marker >= 0xc0 &&
+        marker <= 0xcf &&
+        marker !== 0xc4 &&
+        marker !== 0xc8 &&
+        marker !== 0xcc
+      ) {
+        return { width: view.getUint16(offset + 7), height: view.getUint16(offset + 5) };
+      }
+      offset += 2 + length;
+    }
+  }
+  fail("Image type is unsupported");
+}
+
+export class FakeFigma {
+  readonly mixed = Symbol("mixed");
+  readonly editorType = "figma";
+  readonly images = new Map<string, { width: number; height: number }>();
+  readonly availableFonts = new Set([
+    "Inter\u0000Regular",
+    "Inter\u0000Bold",
+    "Inter\u0000Italic",
+    "Inter\u0000Bold Italic",
+    "Inter\u0000Medium",
+    "Inter\u0000Light",
+    "Inter\u0000Semi Bold",
+  ]);
+  readonly loadedFonts = new Set<string>();
+  readonly #nodes = new Map<string, FakeNode>();
+  #nextId = 1;
+  readonly root: FakeNode;
+  currentPage: FakeNode;
+
+  constructor() {
+    this.root = new FakeNode(this, "DOCUMENT");
+    this.root.name = "Untitled";
+    this.currentPage = new FakeNode(this, "PAGE");
+    this.currentPage.name = "Page 1";
+    this.root.appendChild(this.currentPage);
+  }
+
+  register(node: FakeNode): string {
+    const id = `${String(this.#nextId++)}:1`;
+    this.#nodes.set(id, node);
+    return id;
+  }
+
+  /** Every node on the page, depth first. */
+  all(): FakeNode[] {
+    const out: FakeNode[] = [];
+    const walk = (node: FakeNode) => {
+      for (const child of node.children) {
+        out.push(child);
+        walk(child);
+      }
+    };
+    walk(this.currentPage);
+    return out;
+  }
+
+  createFrame = () => new FakeNode(this, "FRAME");
+  createRectangle = () => new FakeNode(this, "RECTANGLE");
+  createEllipse = () => new FakeNode(this, "ELLIPSE");
+  createVector = () => new FakeNode(this, "VECTOR");
+  createText = () => {
+    const text = new FakeNode(this, "TEXT");
+    text.fontNameValue = { family: "Inter", style: "Regular" };
+    return text;
+  };
+
+  createImage = (bytes: Uint8Array) => {
+    const size = imageSize(bytes);
+    if (size.width > MAX_IMAGE_SIDE || size.height > MAX_IMAGE_SIDE) fail("Image is too large");
+    const hash = `img${String(this.images.size + 1)}`;
+    this.images.set(hash, size);
+    return { hash, getSizeAsync: () => Promise.resolve(size) };
+  };
+
+  group = (children: readonly FakeNode[], parent: FakeNode) => {
+    if (children.length === 0) fail("Grouping zero nodes");
+    const group = new FakeNode(this, "GROUP");
+    parent.appendChild(group);
+    for (const child of children) group.appendChild(child);
+    return group;
+  };
+
+  loadFontAsync = (font: { family: string; style: string }) => {
+    const key = `${font.family}\u0000${font.style}`;
+    if (!this.availableFonts.has(key))
+      return Promise.reject(
+        new FigmaError(`The font "${font.family} ${font.style}" could not be loaded`),
+      );
+    this.loadedFonts.add(key);
+    return Promise.resolve();
+  };
+
+  commitUndo = () => undefined;
+  notify = () => ({ cancel: () => undefined });
+  getNodeByIdAsync = (id: string) => Promise.resolve(this.#nodes.get(id) ?? null);
+
+  requireFont(font: { family: string; style: string }, what: string): void {
+    if (!this.loadedFonts.has(`${font.family}\u0000${font.style}`)) {
+      fail(
+        `${what}: unloaded font "${font.family} ${font.style}". Please call figma.loadFontAsync first.`,
+      );
+    }
+  }
+}
+
+const PAINT_KEYS: Record<string, readonly string[]> = {
+  SOLID: ["type", "color", "opacity", "visible", "blendMode"],
+  GRADIENT_LINEAR: [
+    "type",
+    "gradientTransform",
+    "gradientStops",
+    "opacity",
+    "visible",
+    "blendMode",
+  ],
+  GRADIENT_RADIAL: [
+    "type",
+    "gradientTransform",
+    "gradientStops",
+    "opacity",
+    "visible",
+    "blendMode",
+  ],
+  IMAGE: [
+    "type",
+    "imageHash",
+    "scaleMode",
+    "imageTransform",
+    "scalingFactor",
+    "opacity",
+    "visible",
+    "blendMode",
+    "filters",
+    "rotation",
+  ],
+};
+
+export class FakeNode {
+  readonly id: string;
+  readonly children: FakeNode[] = [];
+  parent: FakeNode | null = null;
+  name = "";
+  visible = true;
+  clipsContent = false;
+  #width = 100;
+  #height = 100;
+  #x = 0;
+  #y = 0;
+  #opacity = 1;
+  #fills: readonly unknown[] = [];
+  #strokes: readonly unknown[] = [];
+  #vectorPaths: readonly { windingRule: string; data: string }[] = [];
+  #characters = "";
+  fontNameValue: { family: string; style: string } | undefined;
+  readonly props: Record<string, unknown> = {};
+
+  constructor(
+    private readonly figma: FakeFigma,
+    readonly type: string,
+  ) {
+    this.id = figma.register(this);
+  }
+
+  appendChild(child: FakeNode): void {
+    if (child === this) fail("Cannot append a node to itself");
+    for (let p = this.parent; p !== null; p = p.parent)
+      if (p === child) fail("Cannot append a node to its own descendant");
+    if (child.parent !== null)
+      child.parent.children.splice(child.parent.children.indexOf(child), 1);
+    child.parent = this;
+    this.children.push(child);
+  }
+
+  remove(): void {
+    if (this.parent !== null) this.parent.children.splice(this.parent.children.indexOf(this), 1);
+    this.parent = null;
+  }
+
+  resize(width: number, height: number): void {
+    if (finite(width, "resize width") < 0.01) fail(`Expected width >= 0.01, got ${String(width)}`);
+    if (finite(height, "resize height") < 0.01)
+      fail(`Expected height >= 0.01, got ${String(height)}`);
+    this.#width = width;
+    this.#height = height;
+  }
+
+  get width(): number {
+    return this.#width;
+  }
+  get height(): number {
+    return this.#height;
+  }
+  get x(): number {
+    return this.#x;
+  }
+  set x(value: number) {
+    this.#x = finite(value, "x");
+  }
+  get y(): number {
+    return this.#y;
+  }
+  set y(value: number) {
+    this.#y = finite(value, "y");
+  }
+  get opacity(): number {
+    return this.#opacity;
+  }
+  set opacity(value: number) {
+    this.#opacity = unit(value, "opacity");
+  }
+
+  set relativeTransform(m: [[number, number, number], [number, number, number]]) {
+    transform(m, "relativeTransform");
+    this.#x = m[0][2];
+    this.#y = m[1][2];
+  }
+
+  get fills(): readonly unknown[] {
+    return this.#fills;
+  }
+  set fills(paints: readonly unknown[]) {
+    this.#fills = Object.freeze(
+      paints.map((paint, i) => this.#checkPaint(paint, `fills[${String(i)}]`)),
+    );
+  }
+  get strokes(): readonly unknown[] {
+    return this.#strokes;
+  }
+  set strokes(paints: readonly unknown[]) {
+    this.#strokes = Object.freeze(
+      paints.map((paint, i) => this.#checkPaint(paint, `strokes[${String(i)}]`)),
+    );
+  }
+
+  set strokeWeight(value: number) {
+    if (finite(value, "strokeWeight") < 0) fail("strokeWeight must be >= 0");
+  }
+  set dashPattern(values: readonly number[]) {
+    for (const value of values)
+      if (finite(value, "dashPattern") < 0) fail("dashPattern must be >= 0");
+  }
+  set strokeAlign(value: string) {
+    if (!["INSIDE", "CENTER", "OUTSIDE"].includes(value)) fail(`strokeAlign: ${value}`);
+  }
+  set strokeJoin(value: string) {
+    if (!["MITER", "ROUND", "BEVEL"].includes(value)) fail(`strokeJoin: ${value}`);
+  }
+  set strokeCap(value: string) {
+    if (!["NONE", "ROUND", "SQUARE"].includes(value)) fail(`strokeCap: ${value}`);
+  }
+
+  set cornerRadius(value: number) {
+    if (finite(value, "cornerRadius") < 0) fail("cornerRadius must be >= 0");
+  }
+  set topLeftRadius(value: number) {
+    this.cornerRadius = value;
+  }
+  set topRightRadius(value: number) {
+    this.cornerRadius = value;
+  }
+  set bottomLeftRadius(value: number) {
+    this.cornerRadius = value;
+  }
+  set bottomRightRadius(value: number) {
+    this.cornerRadius = value;
+  }
+
+  get vectorPaths(): readonly { windingRule: string; data: string }[] {
+    return this.#vectorPaths;
+  }
+  set vectorPaths(paths: readonly { windingRule: string; data: string }[]) {
+    if (this.type !== "VECTOR") fail("vectorPaths is only settable on vectors");
+    for (const path of paths) {
+      if (!["NONZERO", "EVENODD", "NONE"].includes(path.windingRule))
+        fail(`windingRule: ${path.windingRule}`);
+      if (!isFigmaPath(path.data))
+        fail(`Failed to set vectorPaths: invalid path data "${path.data.slice(0, 60)}"`);
+    }
+    this.#vectorPaths = paths;
+  }
+
+  // ── text ────────────────────────────────────────────────────────────────────
+
+  get fontName(): { family: string; style: string } {
+    return this.fontNameValue ?? fail("not a text node");
+  }
+  set fontName(font: { family: string; style: string }) {
+    this.figma.requireFont(font, "fontName");
+    this.fontNameValue = font;
+  }
+  get characters(): string {
+    return this.#characters;
+  }
+  set characters(value: string) {
+    this.figma.requireFont(this.fontName, "characters");
+    this.#characters = value;
+  }
+
+  #range(start: number, end: number, what: string): void {
+    finite(start, what);
+    finite(end, what);
+    if (start < 0 || end > this.#characters.length || start >= end) {
+      fail(
+        `${what}: range ${String(start)}..${String(end)} outside 0..${String(this.#characters.length)}`,
+      );
+    }
+    this.figma.requireFont(this.fontName, what);
+  }
+  setRangeFontName(start: number, end: number, font: { family: string; style: string }): void {
+    this.#range(start, end, "setRangeFontName");
+    this.figma.requireFont(font, "setRangeFontName");
+  }
+  setRangeFontSize(start: number, end: number, size: number): void {
+    this.#range(start, end, "setRangeFontSize");
+    if (finite(size, "fontSize") < 1) fail(`fontSize must be >= 1, got ${String(size)}`);
+  }
+  setRangeFills(start: number, end: number, paints: readonly unknown[]): void {
+    this.#range(start, end, "setRangeFills");
+    for (const [i, paint] of paints.entries())
+      this.#checkPaint(paint, `setRangeFills[${String(i)}]`);
+  }
+  setRangeLetterSpacing(start: number, end: number, value: { unit: string; value: number }): void {
+    this.#range(start, end, "setRangeLetterSpacing");
+    finite(value.value, "letterSpacing");
+  }
+  setRangeLineHeight(start: number, end: number, value: { unit: string; value?: number }): void {
+    this.#range(start, end, "setRangeLineHeight");
+    if (value.unit !== "AUTO" && finite(value.value, "lineHeight") < 0)
+      fail("lineHeight must be >= 0");
+  }
+  setRangeTextCase(start: number, end: number): void {
+    this.#range(start, end, "setRangeTextCase");
+  }
+  setRangeTextDecoration(start: number, end: number): void {
+    this.#range(start, end, "setRangeTextDecoration");
+  }
+  setRangeHyperlink(start: number, end: number): void {
+    this.#range(start, end, "setRangeHyperlink");
+  }
+  setRangeListOptions(start: number, end: number, options: { type: string }): void {
+    this.#range(start, end, "setRangeListOptions");
+    if (!["ORDERED", "UNORDERED", "NONE"].includes(options.type)) fail(`list type ${options.type}`);
+  }
+  setRangeIndentation(start: number, end: number, level: number): void {
+    this.#range(start, end, "setRangeIndentation");
+    if (!Number.isInteger(level) || level < 0) fail("indentation must be a non-negative integer");
+  }
+  set paragraphSpacing(value: number) {
+    finite(value, "paragraphSpacing");
+  }
+  set listSpacing(value: number) {
+    finite(value, "listSpacing");
+  }
+  set textAlignHorizontal(value: string) {
+    if (!["LEFT", "CENTER", "RIGHT", "JUSTIFIED"].includes(value))
+      fail(`textAlignHorizontal: ${value}`);
+  }
+  set textAlignVertical(value: string) {
+    if (!["TOP", "CENTER", "BOTTOM"].includes(value)) fail(`textAlignVertical: ${value}`);
+  }
+  set textAutoResize(value: string) {
+    if (!["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"].includes(value))
+      fail(`textAutoResize: ${value}`);
+  }
+
+  #checkPaint(paint: unknown, what: string): unknown {
+    if (typeof paint !== "object" || paint === null) fail(`${what}: not a paint`);
+    const p = paint as Record<string, unknown>;
+    const type = String(p["type"]);
+    const keys = PAINT_KEYS[type] ?? fail(`${what}: unsupported paint type ${type}`);
+    onlyKeys(p, keys, what);
+    if (p["opacity"] !== undefined) unit(p["opacity"], `${what}.opacity`);
+    if (type === "SOLID") {
+      const color = p["color"] as Record<string, unknown>;
+      onlyKeys(color, ["r", "g", "b"], `${what}.color`);
+      for (const c of ["r", "g", "b"]) unit(color[c], `${what}.color.${c}`);
+    } else if (type === "IMAGE") {
+      const hash = p["imageHash"];
+      if (typeof hash !== "string" || !this.figma.images.has(hash))
+        fail(`${what}: unknown imageHash ${String(hash)}`);
+      if (p["imageTransform"] !== undefined)
+        transform(p["imageTransform"], `${what}.imageTransform`);
+      if (
+        p["scalingFactor"] !== undefined &&
+        finite(p["scalingFactor"], `${what}.scalingFactor`) <= 0
+      )
+        fail(`${what}: scalingFactor must be > 0`);
+    } else {
+      transform(p["gradientTransform"], `${what}.gradientTransform`);
+      const stops = p["gradientStops"];
+      if (!Array.isArray(stops) || stops.length < 2)
+        fail(`${what}: a gradient needs at least two stops`);
+      for (const stop of stops as { position: unknown; color: Record<string, unknown> }[]) {
+        unit(stop.position, `${what}.gradientStops.position`);
+        for (const c of ["r", "g", "b", "a"])
+          unit(stop.color[c], `${what}.gradientStops.color.${c}`);
+      }
+    }
+    return paint;
+  }
+}
+
+/** Install a fresh fake as the global `figma` and return it. */
+export function installFakeFigma(): FakeFigma {
+  const fake = new FakeFigma();
+  (globalThis as { figma?: unknown }).figma = fake;
+  return fake;
+}

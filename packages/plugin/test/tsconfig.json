@@ -1,0 +1,17 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "../.tsbuild/test",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // Tests run in Node against the plugin sources and the importers.
+    "types": ["@figma/plugin-typings", "node"]
+  },
+  "include": [".", "../src"],
+  "references": [
+    { "path": "../../protocol" },
+    { "path": "../../scene" },
+    { "path": "../../import-pdf" },
+    { "path": "../../import-pptx" }
+  ]
+}

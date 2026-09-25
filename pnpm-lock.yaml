@@ -358,6 +358,12 @@ importers:
 
   packages/plugin:
     devDependencies:
+      '@figbridge/import-pdf':
+        specifier: workspace:*
+        version: link:../import-pdf
+      '@figbridge/import-pptx':
+        specifier: workspace:*
+        version: link:../import-pptx
       '@figbridge/protocol':
         specifier: workspace:*
         version: link:../protocol

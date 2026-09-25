@@ -5,6 +5,7 @@
     { "path": "packages/scene" },
     { "path": "packages/figbridge" },
     { "path": "packages/plugin" },
+    { "path": "packages/plugin/test" },
     { "path": "packages/import-pdf" },
     { "path": "packages/import-pptx" }
   ]

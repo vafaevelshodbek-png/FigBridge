@@ -87,13 +87,17 @@ export class SceneRenderer {
       return group;
     }
 
+    // The leaf is appended before it is configured (see the invariants above); if configuring
+    // fails, remove it rather than leave an empty placeholder in the frame.
+    const attached: { node?: SceneNode } = {};
     try {
-      const created = await this.#renderLeaf(node, parent);
+      const created = await this.#renderLeaf(node, parent, attached);
       created.name = node.name;
       if (node.opacity < 1 && "opacity" in created) created.opacity = node.opacity;
       if (!node.visible) created.visible = false;
       return created;
     } catch (error) {
+      attached.node?.remove();
       this.ctx.warnings.push(
         `${node.type} "${node.name}": ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -104,12 +108,17 @@ export class SceneRenderer {
   async #renderLeaf(
     node: Exclude<SceneNodeIR, { type: "group" }>,
     parent: BaseNode & ChildrenMixin,
+    attached: { node?: SceneNode },
   ): Promise<SceneNode> {
     const { images } = this.ctx;
+    const attach = <T extends SceneNode>(created: T): T => {
+      parent.appendChild(created);
+      attached.node = created;
+      return created;
+    };
     switch (node.type) {
       case "rect": {
-        const rect = figma.createRectangle();
-        parent.appendChild(rect);
+        const rect = attach(figma.createRectangle());
         rect.resize(safeSize(node.w), safeSize(node.h));
         rect.fills = await toFigmaPaints(node.fills, images);
         setRadii(rect, node.radii);
@@ -118,8 +127,7 @@ export class SceneRenderer {
         return rect;
       }
       case "ellipse": {
-        const ellipse = figma.createEllipse();
-        parent.appendChild(ellipse);
+        const ellipse = attach(figma.createEllipse());
         ellipse.resize(safeSize(node.w), safeSize(node.h));
         ellipse.fills = await toFigmaPaints(node.fills, images);
         await applyStrokes(ellipse, node.strokes, images);
@@ -127,8 +135,7 @@ export class SceneRenderer {
         return ellipse;
       }
       case "image": {
-        const rect = figma.createRectangle();
-        parent.appendChild(rect);
+        const rect = attach(figma.createRectangle());
         rect.resize(safeSize(node.w), safeSize(node.h));
         rect.fills = await toFigmaPaints([node.image], images);
         setRadii(rect, node.radii);
@@ -137,8 +144,7 @@ export class SceneRenderer {
         return rect;
       }
       case "vector": {
-        const vector = figma.createVector();
-        parent.appendChild(vector);
+        const vector = attach(figma.createVector());
         vector.vectorPaths = node.paths.map((path) => ({
           windingRule: path.fillRule === "evenodd" ? "EVENODD" : "NONZERO",
           data: path.d,
@@ -149,8 +155,7 @@ export class SceneRenderer {
         return vector;
       }
       case "text": {
-        const text = figma.createText();
-        parent.appendChild(text);
+        const text = attach(figma.createText());
         await writeText(text, node, this.ctx.fonts);
         if (node.sizing === "fixed") text.resize(safeSize(node.w), safeSize(node.h));
         else if (node.sizing === "height") text.resize(safeSize(node.w), text.height);
