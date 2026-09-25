@@ -11,7 +11,7 @@ import type { Series } from "./series.js";
 import { label, PLOT, type Plot, rect, type TextStyle, textStyle } from "./style.js";
 
 /** Glyph advance for sizing label columns: 10 % headroom so the longest label never clips. */
-const LABEL_ADVANCE = AVERAGE_GLYPH_ADVANCE * 1.1;
+export const LABEL_ADVANCE = AVERAGE_GLYPH_ADVANCE * 1.1;
 
 /** Chart title: explicit rich text, or the series name for an auto title. */
 export function titleNode(
@@ -144,16 +144,4 @@ export function axisLine(
       { type: "solid", color: color.color, opacity: color.alpha },
     ]),
   ];
-}
-
-/** Axis maximum PowerPoint would choose: a 1/2/5 step giving at most 7 gridlines. */
-export function niceMax(max: number): number {
-  let step = 10 ** Math.floor(Math.log10(max / 5));
-  for (const m of [1, 2, 5, 10]) {
-    if (max / (step * m) <= 7) {
-      step *= m;
-      break;
-    }
-  }
-  return Math.ceil((max * 1.05) / step) * step;
 }

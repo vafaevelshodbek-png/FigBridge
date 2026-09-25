@@ -5,7 +5,8 @@ import type { SceneNode } from "@figbridge/scene";
 import type { SlideContext } from "../context.js";
 import type { Box } from "../transform.js";
 import { attr, child, num, type XmlElement } from "../xml.js";
-import { axisLine, categoryLabels, niceMax } from "./layout.js";
+import type { ValueScale } from "./axis.js";
+import { axisLine, categoryLabels } from "./layout.js";
 import type { Series } from "./series.js";
 import { formatValue, label, type Plot, rect } from "./style.js";
 
@@ -18,6 +19,7 @@ export function barNodes(
   categories: string[],
   frame: Box,
   plot: Plot,
+  scale: ValueScale,
 ): SceneNode[] {
   if (series.length === 0 || categories.length === 0) return [];
   const horizontal = attr(child(bar, "barDir"), "val") === "bar";
@@ -27,11 +29,7 @@ export function barNodes(
   const totals = categories.map((_, ci) =>
     series.reduce((sum, s) => sum + Math.max(0, s.values.get(ci) ?? 0), 0),
   );
-  const max = stacked
-    ? Math.max(0, ...totals)
-    : Math.max(0, ...series.flatMap((s) => [...s.values.values()]));
-  if (max <= 0) return [];
-  const top = percent ? 1 : niceMax(max);
+  const top = scale.max;
   const gap = num(child(bar, "gapWidth"), "val", 150) / 100;
   const overlap = stacked ? 1 : num(child(bar, "overlap"), "val", 0) / 100;
   const slots = stacked ? 1 : series.length;

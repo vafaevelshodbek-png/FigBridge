@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isFigmaPath, type SceneNode, SceneSchema } from "@figbridge/scene";
 import { describe, expect, it } from "vitest";
-import { niceMax } from "../src/chart/layout.js";
+import { niceScale, numberFormat } from "../src/chart/axis.js";
 import { slicePath } from "../src/chart/pie.js";
 import { applyTransforms, hexToRgb } from "../src/color.js";
 import { parseFontStyle } from "../src/fonts.js";
@@ -95,8 +95,8 @@ describe("units", () => {
   });
 
   it("chooses round axis maxima", () => {
-    expect(niceMax(600)).toBe(700);
-    expect(niceMax(945)).toBe(1000);
+    expect(niceScale(600).max).toBe(700);
+    expect(niceScale(945).max).toBe(1000);
   });
 });
 
@@ -164,5 +164,23 @@ describe("pie slices", () => {
     const d = slicePath(10, 5, -90, 360);
     expect(isFigmaPath(d)).toBe(true);
     expect(d.match(/M /g)).toHaveLength(2);
+  });
+});
+
+describe("value axis scale and format", () => {
+  it("steps like PowerPoint: 1-2-5, at most 10 intervals, 5 % headroom", () => {
+    expect(niceScale(8.2)).toEqual({ max: 9, step: 1 });
+    expect(niceScale(600)).toEqual({ max: 700, step: 100 });
+    expect(niceScale(0.37)).toEqual({ max: 0.4, step: 0.05 });
+  });
+  it.each([
+    [undefined, false, 1234.5, "1234.5"],
+    ["General", true, 0.25, "25%"],
+    ["0%", false, 0.125, "13%"],
+    ["0.0%", false, 0.125, "12.5%"],
+    ["#,##0", false, 1234567, "1,234,567"],
+    ["0.00", false, 3, "3.00"],
+  ] as const)("format %s", (code, percent, value, text) => {
+    expect(numberFormat(code, percent)(value)).toBe(text);
   });
 });

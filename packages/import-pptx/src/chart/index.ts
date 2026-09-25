@@ -7,6 +7,7 @@ import type { SceneNode } from "@figbridge/scene";
 import { ptToPx, type SlideContext } from "../context.js";
 import type { Box } from "../transform.js";
 import { attr, child, childrenOf, find, findAll, type XmlElement } from "../xml.js";
+import { dataMax, valueAxis, valueScale } from "./axis.js";
 import { barNodes } from "./bar.js";
 import { barCategoryLabels, legendNodes, titleNode } from "./layout.js";
 import { lineNodes } from "./line.js";
@@ -65,19 +66,30 @@ export function chartNodes(
   const legend = legendNodes(ctx, child(chart, "legend"), legendEntries, frame, plot, base);
   decoration.push(...legend.nodes);
   plot.right = Math.min(plot.right, legend.left);
-  if (typed.name === "barChart" || typed.name === "bar3DChart") {
-    if (attr(child(typed, "barDir"), "val") === "bar")
-      decoration.push(...barCategoryLabels(ctx, chartPart, categories, plot, base));
-  }
+  const isBar = typed.name === "barChart" || typed.name === "bar3DChart";
+  const isLine = typed.name === "lineChart" || typed.name === "line3DChart";
+  const horizontal = isBar && attr(child(typed, "barDir"), "val") === "bar";
+  const grouping = attr(child(typed, "grouping"), "val") ?? "clustered";
+  const percent = isBar && grouping === "percentStacked";
+  const stacked = isBar && (percent || grouping === "stacked");
+  const max = dataMax(series, categories.length, stacked);
+  const scale = valueScale(find(chartPart, "valAx"), max, percent);
+  // The value axis reserves its label room first; category labels then take theirs.
+  const axis =
+    isBar || isLine ? valueAxis(ctx, chartPart, scale, plot, horizontal, base) : undefined;
+  if (horizontal) decoration.push(...barCategoryLabels(ctx, chartPart, categories, plot, base));
+  if (axis !== undefined) decoration.push(...axis.labels());
+  const gridlines = axis?.gridlines() ?? [];
+  if ((isBar || isLine) && max <= 0) return [];
   let nodes: SceneNode[];
   switch (typed.name) {
     case "barChart":
     case "bar3DChart":
-      nodes = barNodes(ctx, chartPart, typed, series, categories, frame, plot);
+      nodes = barNodes(ctx, chartPart, typed, series, categories, frame, plot, scale);
       break;
     case "lineChart":
     case "line3DChart":
-      nodes = lineNodes(ctx, chartPart, series, categories, frame, plot);
+      nodes = lineNodes(ctx, chartPart, series, categories, frame, plot, scale);
       break;
     case "pieChart":
     case "pie3DChart":
@@ -105,7 +117,8 @@ export function chartNodes(
           type: "group",
           opacity: 1,
           visible: true,
-          children: [...nodes, ...decoration],
+          // Gridlines under the data, labels and legend on top.
+          children: [...gridlines, ...nodes, ...decoration],
         },
       ];
 }

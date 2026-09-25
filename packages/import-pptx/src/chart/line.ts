@@ -5,7 +5,8 @@ import type { SceneNode } from "@figbridge/scene";
 import { ptToPx, round, type SlideContext } from "../context.js";
 import type { Box } from "../transform.js";
 import type { XmlElement } from "../xml.js";
-import { axisLine, categoryLabels, niceMax } from "./layout.js";
+import type { ValueScale } from "./axis.js";
+import { axisLine, categoryLabels } from "./layout.js";
 import type { Series } from "./series.js";
 import { DEFAULT_BAR, type Plot } from "./style.js";
 
@@ -17,10 +18,10 @@ export function lineNodes(
   categories: string[],
   frame: Box,
   plot: Plot,
+  scale: ValueScale,
 ): SceneNode[] {
-  const max = Math.max(0, ...series.flatMap((s) => [...s.values.values()]));
-  if (series.length === 0 || categories.length === 0 || max <= 0) return [];
-  const top = niceMax(max);
+  if (series.length === 0 || categories.length === 0) return [];
+  const top = scale.max;
   const step = (plot.right - plot.left) / categories.length;
   const nodes: SceneNode[] = [];
   for (const s of series) {
