@@ -128,7 +128,12 @@ export class FakeFigma {
   createFrame = () => new FakeNode(this, "FRAME");
   createRectangle = () => new FakeNode(this, "RECTANGLE");
   createEllipse = () => new FakeNode(this, "ELLIPSE");
-  createVector = () => new FakeNode(this, "VECTOR");
+  /** Like Figma's, a new vector has a 1 px black stroke until told otherwise. */
+  createVector = () => {
+    const vector = new FakeNode(this, "VECTOR");
+    vector.strokes = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 }, opacity: 1 }];
+    return vector;
+  };
   createText = () => {
     const text = new FakeNode(this, "TEXT");
     text.fontNameValue = { family: "Inter", style: "Regular" };

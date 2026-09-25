@@ -211,6 +211,20 @@ describe("the fake enforces Figma's limits", () => {
     }
   });
 
+  it("a vector without an outline has no stroke (Figma adds one by default)", async () => {
+    const vector: SceneNode = {
+      ...base,
+      id: "v",
+      name: "v",
+      type: "vector",
+      paths: [{ d: "M 0 0 L 10 0 L 10 10 Z", fillRule: "nonzero" }],
+      fills: [{ type: "solid", color: "#FAFAFA", opacity: 1 }],
+      strokes: [],
+    };
+    const { frames } = await render(fake, [slide([vector])], new Map());
+    expect(frames[0]?.children[0]?.strokes).toEqual([]);
+  });
+
   it("requires fonts to be loaded before text is written", () => {
     const text = fake.createText();
     expect(() => {

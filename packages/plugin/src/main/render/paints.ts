@@ -88,7 +88,11 @@ export async function applyStrokes(
   images: ImageResolver,
 ): Promise<void> {
   const [first] = strokes;
-  if (first === undefined) return;
+  if (first === undefined) {
+    // Clear explicitly: Figma gives a new vector a default 1 px black stroke.
+    node.strokes = [];
+    return;
+  }
   node.strokes = await toFigmaPaints(
     strokes.map((stroke) => stroke.paint),
     images,
