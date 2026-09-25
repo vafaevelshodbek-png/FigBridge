@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { importPdf } from "@figbridge/import-pdf";
 import { importPptx } from "@figbridge/import-pptx";
-import { BridgeError } from "@figbridge/protocol";
+import { BridgeError, type MethodResult } from "@figbridge/protocol";
 import { ulid } from "ulid";
 import type { HubClient } from "./client.js";
 
@@ -78,7 +78,7 @@ export async function importDeck(
     options.signal?.throwIfAborted();
     const x = (options.x ?? 0) + (index % columns) * (slide.width + gap);
     const y = (options.y ?? 0) + Math.floor(index / columns) * (slide.height + gap);
-    let rendered;
+    let rendered: MethodResult<"scene.render">;
     try {
       rendered = await client.call(
         "scene.render",
