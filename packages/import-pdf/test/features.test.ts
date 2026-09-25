@@ -206,3 +206,49 @@ describe("text", () => {
     expect(text.split("\n")).toEqual(["One", "Two", "Three"]);
   });
 });
+
+describe("output width", () => {
+  it("does not change which shapes merge", async () => {
+    // Two small triangles 3 pt apart: 14.4 px at 1920 wide, 7.2 px at 960 — the merge gap
+    // (10 px at 1920) must scale with the output, or the narrow import merges them.
+    const content = "0 0 0 rg 50 50 m 70 50 l 60 70 l h f 73 50 m 93 50 l 83 70 l h f";
+    const count = async (width: number) => {
+      const result = await importPdf(buildPdf([{ content }]), "t.pdf", { width });
+      return result.scene.slides[0]?.children.filter((n) => n.type === "vector").length;
+    };
+    expect(await count(1920)).toBe(2);
+    expect(await count(960)).toBe(2);
+  });
+
+  it("changes the scale, not the structure", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const file = fileURLToPath(
+      new URL("../../../corpus/nasa_aiaa_template_2014.pdf", import.meta.url),
+    );
+    const data = () => new Uint8Array(readFileSync(file));
+    const outline = (nodes: readonly SceneNode[]): string[] =>
+      nodes.flatMap((n) =>
+        n.type === "group"
+          ? [`group(${outline(n.children).join(",")})`]
+          : [n.type === "text" ? `text:${n.characters}` : n.type],
+      );
+    const full = await importPdf(data(), "a.pdf", { pages: [1, 2, 3] });
+    const half = await importPdf(data(), "a.pdf", { pages: [1, 2, 3], width: 960 });
+    for (const [i, slide] of full.scene.slides.entries()) {
+      const other = half.scene.slides[i];
+      expect(other && outline(other.children)).toEqual(outline(slide.children));
+      const first = slide.children[0];
+      const firstHalf = other?.children[0];
+      if (
+        first !== undefined &&
+        first.type !== "group" &&
+        firstHalf !== undefined &&
+        firstHalf.type !== "group"
+      ) {
+        expect(firstHalf.x).toBeCloseTo(first.x / 2, 0);
+        expect(firstHalf.w).toBeCloseTo(first.w / 2, 0);
+      }
+    }
+  });
+});

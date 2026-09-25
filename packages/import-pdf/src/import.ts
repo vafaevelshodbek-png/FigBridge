@@ -34,6 +34,9 @@ import {
   repairLigatures,
 } from "./text.js";
 
+/** Slide width the grouping heuristics were tuned at; other widths scale them. */
+const REFERENCE_WIDTH = 1920;
+
 export interface ImportOptions {
   /** Output slide width in px; height follows the page aspect ratio. Default 1920. */
   width?: number;
@@ -88,7 +91,9 @@ async function importPage(
   blobs: ImportResult["blobs"],
   warnings: string[],
 ): Promise<Slide> {
-  const width = options.width ?? 1920;
+  const width = options.width ?? REFERENCE_WIDTH;
+  // Grouping thresholds are tuned in px at REFERENCE_WIDTH; scale them with the output.
+  const unit = width / REFERENCE_WIDTH;
   const pageWidth = (page.view[2] ?? width) - (page.view[0] ?? 0);
   const viewport = page.getViewport({ scale: width / pageWidth });
   const operatorList = await page.getOperatorList();
@@ -142,7 +147,7 @@ async function importPage(
   }
 
   // ── vectors ───────────────────────────────────────────────────────────────
-  for (const run of mergeRuns(dedupe(vectors))) {
+  for (const run of mergeRuns(dedupe(vectors), unit)) {
     const [head] = run;
     if (head === undefined) continue;
     const visible = visibleBox(head.box, head.clips) ?? head.box;
@@ -208,8 +213,8 @@ async function importPage(
   }
 
   // ── text (always on top: PDFs paint text last in practice) ────────────────
-  const textNodes = buildParagraphs(buildLines(dedupeGlyphs(repairLigatures(glyphs))))
-    .map((paragraph) => paragraphToNode(paragraph, nextId()))
+  const textNodes = buildParagraphs(buildLines(dedupeGlyphs(repairLigatures(glyphs))), unit)
+    .map((paragraph) => paragraphToNode(paragraph, nextId(), unit))
     .filter((node) => node !== undefined);
   if (glyphs.some((g) => !g.upright))
     warnings.push(`page ${String(number)}: rotated text was skipped`);

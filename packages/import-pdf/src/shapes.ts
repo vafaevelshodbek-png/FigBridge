@@ -8,9 +8,9 @@ import { asRoundedRect, type Box, bounds, subpathCount, toSvgPath } from "./path
 import type { ClipPath, PathPrimitive } from "./primitives.js";
 import { round } from "./round.js";
 
-/** Shapes smaller than this (px, both sides) are candidates for merging into one vector. */
+/** Shapes smaller than this (reference px, both sides) may merge into one vector. */
 const MERGE_MAX_SIZE = { w: 320, h: 150 } as const;
-/** Merge when boxes are within this many px of each other. */
+/** Merge when boxes are within this distance (reference px) of each other. */
 const MERGE_GAP = 10;
 /** A primitive hidden by clips except for this fraction of its area is dropped. */
 const MIN_VISIBLE_FRACTION = 0.05;
@@ -145,24 +145,20 @@ function styleKey(p: PathPrimitive): string {
   ]);
 }
 
-function near(a: Box, b: Box): boolean {
-  return !(
-    b.x0 > a.x1 + MERGE_GAP ||
-    a.x0 > b.x1 + MERGE_GAP ||
-    b.y0 > a.y1 + MERGE_GAP ||
-    a.y0 > b.y1 + MERGE_GAP
-  );
+function near(a: Box, b: Box, unit: number): boolean {
+  const gap = MERGE_GAP * unit;
+  return !(b.x0 > a.x1 + gap || a.x0 > b.x1 + gap || b.y0 > a.y1 + gap || a.y0 > b.y1 + gap);
 }
 
-function small(box: Box): boolean {
-  return box.x1 - box.x0 < MERGE_MAX_SIZE.w && box.y1 - box.y0 < MERGE_MAX_SIZE.h;
+function small(box: Box, unit: number): boolean {
+  return box.x1 - box.x0 < MERGE_MAX_SIZE.w * unit && box.y1 - box.y0 < MERGE_MAX_SIZE.h * unit;
 }
 
 /**
  * Split consecutive path primitives into runs that should become one vector each:
- * small, same style, touching, painted back to back.
+ * small, same style, touching, painted back to back. `unit` is output px per reference px.
  */
-export function mergeRuns(paths: readonly PathPrimitive[]): PathPrimitive[][] {
+export function mergeRuns(paths: readonly PathPrimitive[], unit = 1): PathPrimitive[][] {
   const runs: PathPrimitive[][] = [];
   for (const p of paths) {
     const run = runs[runs.length - 1];
@@ -175,10 +171,10 @@ export function mergeRuns(paths: readonly PathPrimitive[]): PathPrimitive[][] {
       run !== undefined &&
       last !== undefined &&
       (!isRect || runHasShapes) &&
-      small(p.box) &&
-      small(last.box) &&
+      small(p.box, unit) &&
+      small(last.box, unit) &&
       styleKey(p) === styleKey(last) &&
-      near(last.box, p.box);
+      near(last.box, p.box, unit);
     if (mergeable) run.push(p);
     else runs.push([p]);
   }

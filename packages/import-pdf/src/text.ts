@@ -16,13 +16,13 @@ const SAME_BASELINE = 0.2;
 const MAX_WORD_GAP = 1.6;
 /** A gap wider than this × size between glyphs means a word break. */
 const SPACE_GAP = 0.15;
-/** Lines align when their left edges (or centres) differ by less than this many px. */
+/** Lines align when their left edges (or centres) differ by less than this (reference px). */
 const ALIGN_TOLERANCE = 3;
 /** Two consecutive lines belong to one paragraph if the baseline step ≤ this × size. */
 const MAX_LINE_STEP = 1.9;
-/** Allowed deviation of a paragraph's baseline step, px. */
+/** Allowed deviation of a paragraph's baseline step (reference px). */
 const STEP_TOLERANCE = 1.8;
-/** Font sizes are "equal" within this many px. */
+/** Font sizes are "equal" within this (reference px). */
 const SIZE_TOLERANCE = 0.8;
 /** Replacement fonts are usually wider than brand fonts: widen boxes so lines don't wrap. */
 const WIDTH_SLACK = 1.06;
@@ -146,8 +146,11 @@ function trimLine(line: Line): Line | undefined {
 
 const midpoint = (line: Line) => (line.x0 + line.x1) / 2;
 
-/** Group lines into paragraphs. Every line ends up in exactly one paragraph. */
-export function buildParagraphs(lines: readonly Line[]): Line[][] {
+/**
+ * Group lines into paragraphs. Every line ends up in exactly one paragraph.
+ * `unit` is output px per reference px (see REFERENCE_WIDTH in import.ts).
+ */
+export function buildParagraphs(lines: readonly Line[], unit = 1): Line[][] {
   const used = new Set<number>();
   const paragraphs: Line[][] = [];
   lines.forEach((start, index) => {
@@ -167,15 +170,15 @@ export function buildParagraphs(lines: readonly Line[]): Line[][] {
         if (gap <= 0) continue;
         if (gap > MAX_LINE_STEP * last.size) break;
         const aligned =
-          Math.abs(candidate.x0 - last.x0) < ALIGN_TOLERANCE ||
-          Math.abs(midpoint(candidate) - midpoint(last)) < ALIGN_TOLERANCE ||
+          Math.abs(candidate.x0 - last.x0) < ALIGN_TOLERANCE * unit ||
+          Math.abs(midpoint(candidate) - midpoint(last)) < ALIGN_TOLERANCE * unit ||
           // Hanging punctuation: a quote in the first line pushes it left of the rest.
           (group.length === 1 &&
             /^[“"«'‘]/.test(start.glyphs[0]?.text ?? "") &&
             candidate.x0 - last.x0 > 0 &&
             candidate.x0 - last.x0 < 0.7 * last.size);
-        if (!aligned || Math.abs(candidate.size - last.size) > SIZE_TOLERANCE) continue;
-        if (step !== undefined && Math.abs(gap - step) > STEP_TOLERANCE) continue;
+        if (!aligned || Math.abs(candidate.size - last.size) > SIZE_TOLERANCE * unit) continue;
+        if (step !== undefined && Math.abs(gap - step) > STEP_TOLERANCE * unit) continue;
         next = j;
         break;
       }
@@ -191,20 +194,24 @@ export function buildParagraphs(lines: readonly Line[]): Line[][] {
 
 type Alignment = SceneTextNode["align"];
 
-function alignmentOf(paragraph: readonly Line[]): Alignment {
+function alignmentOf(paragraph: readonly Line[], unit: number): Alignment {
   if (paragraph.length < 2) return "left";
   const lefts = paragraph.map((l) => l.x0);
   const spread = Math.max(...lefts) - Math.min(...lefts);
-  if (spread < ALIGN_TOLERANCE) return "left";
+  if (spread < ALIGN_TOLERANCE * unit) return "left";
   const mids = paragraph.map(midpoint);
-  if (Math.max(...mids) - Math.min(...mids) < ALIGN_TOLERANCE) return "center";
+  if (Math.max(...mids) - Math.min(...mids) < ALIGN_TOLERANCE * unit) return "center";
   const rights = paragraph.map((l) => l.x1);
-  if (Math.max(...rights) - Math.min(...rights) < ALIGN_TOLERANCE) return "right";
+  if (Math.max(...rights) - Math.min(...rights) < ALIGN_TOLERANCE * unit) return "right";
   return "left";
 }
 
 /** Build one Scene text node per paragraph. */
-export function paragraphToNode(paragraph: readonly Line[], id: string): SceneTextNode | undefined {
+export function paragraphToNode(
+  paragraph: readonly Line[],
+  id: string,
+  unit = 1,
+): SceneTextNode | undefined {
   let characters = "";
   const runs: TextRun[] = [];
   paragraph.forEach((line, lineIndex) => {
@@ -254,7 +261,7 @@ export function paragraphToNode(paragraph: readonly Line[], id: string): SceneTe
   // height Figma centres the font's ascent/descent (≈1.21 em for common sans fonts) in the line.
   const top = first.baseline - (step - first.size * 1.21) / 2 - first.size * 0.97;
   const width = (x1 - x0) * WIDTH_SLACK + 4;
-  const align = alignmentOf(paragraph);
+  const align = alignmentOf(paragraph, unit);
   const x = align === "center" ? x0 - (width - (x1 - x0)) / 2 : align === "right" ? x1 - width : x0;
 
   return {
