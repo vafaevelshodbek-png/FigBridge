@@ -1,0 +1,124 @@
+/**
+ * Pattern fills (`a:pattFill`) → an 8×8 two-colour PNG tile.
+ *
+ * PowerPoint draws presets as 8×8 bitmaps at screen resolution (one bit per 96-dpi pixel);
+ * the bit rows below reproduce the common presets. The tiny PNG encoder avoids a native
+ * canvas dependency and is byte-for-byte deterministic.
+ */
+import { zlibSync } from "fflate";
+import { hexToRgb, type Rgba } from "./color.js";
+
+/** One pattern pixel is one 96-dpi screen pixel: 914400 EMU/in ÷ 96. */
+export const EMU_PER_PATTERN_PIXEL = 9525;
+
+/** Rows of 8 bits, most significant bit leftmost; 1 = foreground. */
+const PATTERNS: Readonly<Record<string, readonly number[]>> = {
+  pct5: [0x80, 0, 0, 0, 0x08, 0, 0, 0],
+  pct10: [0x80, 0, 0x08, 0, 0x80, 0, 0x08, 0],
+  pct20: [0x88, 0, 0x22, 0, 0x88, 0, 0x22, 0],
+  pct25: [0x88, 0x22, 0x88, 0x22, 0x88, 0x22, 0x88, 0x22],
+  pct30: [0xaa, 0x44, 0xaa, 0x11, 0xaa, 0x44, 0xaa, 0x11],
+  pct40: [0xaa, 0x55, 0xaa, 0x51, 0xaa, 0x55, 0xaa, 0x15],
+  pct50: [0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55, 0xaa, 0x55],
+  pct60: [0xee, 0x55, 0xbb, 0x55, 0xee, 0x55, 0xbb, 0x55],
+  pct70: [0x77, 0xbb, 0xee, 0xbb, 0x77, 0xbb, 0xee, 0xbb],
+  pct75: [0x77, 0xdd, 0x77, 0xdd, 0x77, 0xdd, 0x77, 0xdd],
+  pct80: [0x77, 0xff, 0xdd, 0xff, 0x77, 0xff, 0xdd, 0xff],
+  pct90: [0x7f, 0xff, 0xf7, 0xff, 0x7f, 0xff, 0xf7, 0xff],
+  horz: [0xff, 0, 0, 0, 0xff, 0, 0, 0],
+  ltHorz: [0xff, 0, 0, 0, 0xff, 0, 0, 0],
+  narHorz: [0xff, 0, 0xff, 0, 0xff, 0, 0xff, 0],
+  dkHorz: [0xff, 0xff, 0, 0, 0xff, 0xff, 0, 0],
+  vert: [0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88],
+  ltVert: [0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88],
+  narVert: [0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa],
+  dkVert: [0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc],
+  dnDiag: [0x88, 0x44, 0x22, 0x11, 0x88, 0x44, 0x22, 0x11],
+  ltDnDiag: [0x88, 0x44, 0x22, 0x11, 0x88, 0x44, 0x22, 0x11],
+  dkDnDiag: [0xcc, 0x66, 0x33, 0x99, 0xcc, 0x66, 0x33, 0x99],
+  wdDnDiag: [0xc1, 0xe0, 0x70, 0x38, 0x1c, 0x0e, 0x07, 0x83],
+  upDiag: [0x11, 0x22, 0x44, 0x88, 0x11, 0x22, 0x44, 0x88],
+  ltUpDiag: [0x11, 0x22, 0x44, 0x88, 0x11, 0x22, 0x44, 0x88],
+  dkUpDiag: [0x33, 0x66, 0xcc, 0x99, 0x33, 0x66, 0xcc, 0x99],
+  wdUpDiag: [0x83, 0x07, 0x0e, 0x1c, 0x38, 0x70, 0xe0, 0xc1],
+  cross: [0xff, 0x88, 0x88, 0x88, 0xff, 0x88, 0x88, 0x88],
+  smGrid: [0xff, 0x88, 0x88, 0x88, 0xff, 0x88, 0x88, 0x88],
+  lgGrid: [0xff, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80],
+  diagCross: [0x81, 0x42, 0x24, 0x18, 0x18, 0x24, 0x42, 0x81],
+  smCheck: [0x99, 0x66, 0x66, 0x99, 0x99, 0x66, 0x66, 0x99],
+  lgCheck: [0xf0, 0xf0, 0xf0, 0xf0, 0x0f, 0x0f, 0x0f, 0x0f],
+  dotGrid: [0xaa, 0, 0x80, 0, 0x80, 0, 0x80, 0],
+  smConfetti: [0x80, 0x10, 0x02, 0x20, 0x01, 0x08, 0x40, 0x04],
+  lgConfetti: [0xb1, 0x30, 0x03, 0x1b, 0xd8, 0xc0, 0x0c, 0x8d],
+};
+
+/** Preset name → 8 bit rows; unknown presets render as 50 %. */
+export function patternRows(preset: string): readonly number[] {
+  return PATTERNS[preset] ?? PATTERNS["pct50"] ?? [];
+}
+
+/** Render the preset as an 8×8 RGBA PNG. */
+export function patternTile(preset: string, fg: Rgba, bg: Rgba): Uint8Array {
+  const rows = patternRows(preset);
+  const [fr, fgc, fb] = hexToRgb(fg.color).map((c) => Math.round(c * 255));
+  const [br, bgc, bb] = hexToRgb(bg.color).map((c) => Math.round(c * 255));
+  const size = 8;
+  const raw = new Uint8Array(size * (1 + size * 4));
+  let o = 0;
+  for (let y = 0; y < size; y++) {
+    raw[o++] = 0; // filter: none
+    const bits = rows[y] ?? 0;
+    for (let x = 0; x < size; x++) {
+      const on = ((bits >> (7 - x)) & 1) === 1;
+      raw[o++] = (on ? fr : br) ?? 0;
+      raw[o++] = (on ? fgc : bgc) ?? 0;
+      raw[o++] = (on ? fb : bb) ?? 0;
+      raw[o++] = Math.round((on ? fg.alpha : bg.alpha) * 255);
+    }
+  }
+  return encodePng(size, size, raw);
+}
+
+/** Minimal PNG writer for 8-bit RGBA scanlines that already carry filter bytes. */
+export function encodePng(width: number, height: number, scanlines: Uint8Array): Uint8Array {
+  const header = new Uint8Array(13);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, width);
+  view.setUint32(4, height);
+  header.set([8, 6, 0, 0, 0], 8); // bit depth 8, colour type RGBA
+  const parts = [
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", zlibSync(scanlines, { level: 9 })),
+    chunk("IEND", new Uint8Array(0)),
+  ];
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+function chunk(type: string, data: Uint8Array): Uint8Array {
+  const out = new Uint8Array(12 + data.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, data.length);
+  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}

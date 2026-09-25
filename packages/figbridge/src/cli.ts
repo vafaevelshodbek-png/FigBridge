@@ -155,8 +155,8 @@ program
 
 program
   .command("import")
-  .description("Import a PDF deck into the connected Figma file as editable slides")
-  .argument("<file>", "path to a .pdf file")
+  .description("Import a PDF or PPTX into the connected Figma file as editable slides")
+  .argument("<file>", "path to a .pdf or .pptx file")
   .option("-p, --pages <list>", "comma-separated 1-based pages, e.g. 1,3,5")
   .option("--x <n>", "grid origin x", "0")
   .option("--y <n>", "grid origin y", "0")

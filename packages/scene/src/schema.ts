@@ -62,6 +62,8 @@ export const ImagePaintSchema = z.object({
   opacity: Unit.default(1),
 });
 
+export type ImagePaint = z.infer<typeof ImagePaintSchema>;
+
 export const PaintSchema = z.discriminatedUnion("type", [
   SolidPaintSchema,
   LinearGradientPaintSchema,

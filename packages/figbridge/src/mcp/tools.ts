@@ -222,11 +222,11 @@ export const TOOLS: readonly ToolDefinition[] = [
 
   define({
     name: "figma_import_deck",
-    title: "Import a PDF deck as editable slides",
+    title: "Import a PDF or PPTX deck as editable slides",
     description:
-      "Convert a PDF presentation or report into editable Figma frames (one per page): backgrounds as fills, cards as rounded rectangles, logos/icons as vectors, photos as image layers, text as editable paragraphs. Frames are laid out in a grid starting at (x, y) on the current page — pick a spot below existing content. Large decks take a while; pass `pages` to try a few first.",
+      "Convert a PDF (presentation, report, any document) or a PowerPoint .pptx into editable Figma frames (one per page): backgrounds as fills, cards as rounded rectangles, logos/icons as vectors, photos as image layers, text as editable paragraphs. Frames are laid out in a grid starting at (x, y) on the current page — pick a spot below existing content. Large decks take a while; pass `pages` to try a few first.",
     input: z.object({
-      path: z.string().describe("Absolute path to a .pdf file on this computer."),
+      path: z.string().describe("Absolute path to a .pdf or .pptx file on this computer."),
       pages: z
         .array(z.number().int().positive())
         .optional()

@@ -5,6 +5,7 @@
 import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { importPdf } from "@figbridge/import-pdf";
+import { importPptx } from "@figbridge/import-pptx";
 import { BridgeError } from "@figbridge/protocol";
 import type { HubClient } from "./client.js";
 
@@ -34,10 +35,10 @@ export async function importDeck(
   options: ImportDeckOptions,
 ): Promise<ImportDeckResult> {
   const extension = extname(options.path).toLowerCase();
-  if (extension !== ".pdf") {
+  if (extension !== ".pdf" && extension !== ".pptx") {
     throw new BridgeError(
       "DOCUMENT_INVALID",
-      `Unsupported file type "${extension}". Supported: .pdf`,
+      `Unsupported file type "${extension}". Supported: .pdf, .pptx`,
     );
   }
   let data: Uint8Array;
@@ -48,7 +49,8 @@ export async function importDeck(
   }
   let converted: Awaited<ReturnType<typeof importPdf>>;
   try {
-    converted = await importPdf(data, basename(options.path), {
+    const convert = extension === ".pptx" ? importPptx : importPdf;
+    converted = await convert(data, basename(options.path), {
       ...(options.pages === undefined ? {} : { pages: options.pages }),
     });
   } catch (error) {

@@ -42,7 +42,7 @@ Every import can be checked against the original with a visual diff.
 | `figma_outline`, `figma_find`, `figma_selection`, `figma_get_node` | Read the document (paged, size-bounded) |
 | `figma_export` | Render a node to PNG/JPG/SVG and look at it |
 | `figma_create`, `figma_update`, `figma_clone`, `figma_delete` | Edit layers |
-| `figma_import_deck` | PDF → editable slide frames |
+| `figma_import_deck` | PDF or PPTX → editable slide frames |
 
 The same operations are available from the CLI: `figbridge status | call | export | import`.
 
@@ -61,7 +61,7 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 
 ## Limitations
 
-- PPTX import is not yet ported to this codebase (PDF works today).
+- PPTX: SmartArt, OLE objects and charts other than clustered columns are skipped with a warning; table styles (tableStyleId) are not applied yet.
 - Brand fonts that are not installed fall back to Inter with the same weight; lines can be slightly longer.
 - Rotated text in PDFs is skipped; vectors drawn on top of a photo inside the same image stay part of the photo.
 - Figma Desktop is required (browser Figma cannot load development plugins).

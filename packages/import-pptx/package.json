@@ -1,0 +1,30 @@
+{
+  "name": "@figbridge/import-pptx",
+  "version": "0.0.0",
+  "description": "PPTX → editable Scene IR (OOXML: master → layout → slide inheritance, theme colours, text, tables, charts).",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "@figbridge/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown src/index.ts --format esm --dts --clean"
+  },
+  "dependencies": {
+    "@figbridge/scene": "workspace:*",
+    "fast-xml-parser": "catalog:",
+    "fflate": "catalog:"
+  },
+  "devDependencies": {
+    "@napi-rs/canvas": "catalog:",
+    "pdfjs-dist": "catalog:",
+    "tsdown": "catalog:"
+  }
+}
