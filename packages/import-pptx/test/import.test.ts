@@ -27,6 +27,16 @@ describe("units", () => {
     expect(out.color).toBe("#BFBFBF");
   });
 
+  it("applies tint in linear light like PowerPoint", () => {
+    const out = applyTransforms(hexToRgb("000000"), 1, [el("tint", { val: "20000" })]);
+    expect(out.color).toBe("#E7E7E7");
+  });
+
+  it("accepts hex with or without #", () => {
+    expect(hexToRgb("#FFFFFF")).toEqual(hexToRgb("FFFFFF"));
+    expect(hexToRgb("FFFFFF")).toEqual([1, 1, 1]);
+  });
+
   it("maps preset geometry to radii", () => {
     const spPr = {
       name: "spPr",

@@ -131,11 +131,21 @@ export function applyTransforms(
         [r, g, b] = hslToRgb(h, clamp01(s), clamp01(l));
         break;
       }
+      // Tint and shade operate in linear light (as PowerPoint renders them); doing it in
+      // sRGB makes tinted fills visibly too dark (e.g. black 20 % tint → #CCC instead of #E6E6E6).
       case "tint":
-        [r, g, b] = [r, g, b].map((x) => x + (1 - x) * (1 - v)) as [number, number, number];
+        [r, g, b] = [r, g, b].map((x) => linearToSrgb(1 - (1 - srgbToLinear(x)) * v)) as [
+          number,
+          number,
+          number,
+        ];
         break;
       case "shade":
-        [r, g, b] = [r * v, g * v, b * v];
+        [r, g, b] = [r, g, b].map((x) => linearToSrgb(srgbToLinear(x) * v)) as [
+          number,
+          number,
+          number,
+        ];
         break;
       case "alpha":
         alpha = v;
@@ -164,7 +174,9 @@ export function applyTransforms(
 // ── conversions ──────────────────────────────────────────────────────────────
 
 export function hexToRgb(hex: string): [number, number, number] {
-  const clean = /^[0-9A-Fa-f]{6}$/.test(hex) ? hex : "000000";
+  // Accepts "RRGGBB" (OOXML) and "#RRGGBB" (resolved colours fed back as phClr).
+  const bare = hex.startsWith("#") ? hex.slice(1) : hex;
+  const clean = /^[0-9A-Fa-f]{6}$/.test(bare) ? bare : "000000";
   return [0, 2, 4].map((i) => Number.parseInt(clean.slice(i, i + 2), 16) / 255) as [
     number,
     number,
@@ -207,6 +219,10 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
     return p;
   };
   return [channel(h + 1 / 3), channel(h), channel(h - 1 / 3)];
+}
+
+function srgbToLinear(x: number): number {
+  return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
 }
 
 function linearToSrgb(x: number): number {
