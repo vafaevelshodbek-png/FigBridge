@@ -12,6 +12,7 @@
     "lint": "biome check . && eslint .",
     "format": "biome format --write .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },

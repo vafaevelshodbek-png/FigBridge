@@ -91,3 +91,37 @@ describe("pathBounds", () => {
     expect(pathBounds("Z")).toBeUndefined();
   });
 });
+
+describe("arc edge cases (SVG F.6.2)", () => {
+  it("a zero-length arc draws nothing", () => {
+    expect(arcToCubics(5, 5, 10, 10, 0, false, true, 5, 5)).toBe("");
+  });
+  it("a zero radius is a straight line", () => {
+    expect(arcToCubics(0, 0, 0, 10, 0, false, true, 20, 0)).toBe("L 20 0");
+  });
+  it("sweep false goes the other way round", () => {
+    const cw = arcToCubics(10, 0, 10, 10, 0, false, true, -10, 0);
+    const ccw = arcToCubics(10, 0, 10, 10, 0, false, false, -10, 0);
+    // Clockwise on screen (y down) passes through (0, 10); the other way through (0, -10).
+    expect(pathBounds(`M 10 0 ${cw}`)?.maxY).toBeCloseTo(10, 1);
+    expect(pathBounds(`M 10 0 ${ccw}`)?.minY).toBeCloseTo(-10, 1);
+  });
+  it("a rotated ellipse keeps its endpoints", () => {
+    const d = arcToCubics(0, 0, 20, 10, 45, false, true, 10, 10);
+    expect(isFigmaPath(`M 0 0 ${d}`)).toBe(true);
+    expect(d.endsWith(" 10 10")).toBe(true);
+  });
+  it("a zero sweep around a centre draws nothing", () => {
+    expect(ellipseArcCubics(0, 0, 10, 10, 0, 0)).toBe("");
+  });
+});
+
+describe("pathBounds of quadratic curves", () => {
+  it("counts the curve's peak, not its control point", () => {
+    // Control point at y = 20: the curve peaks at y = 10.
+    expect(pathBounds("M 0 0 Q 5 20 10 0")?.maxY).toBeCloseTo(10, 5);
+  });
+  it("a straight quadratic adds no extremum", () => {
+    expect(pathBounds("M 0 0 Q 5 5 10 10")).toEqual({ minX: 0, minY: 0, maxX: 10, maxY: 10 });
+  });
+});
