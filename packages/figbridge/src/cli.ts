@@ -83,7 +83,8 @@ program
       requireOwnership: true,
     });
     out(
-      `figbridge hub on 127.0.0.1:${String(runtime.port)} — pairing code ${pairingCode(loadOrCreateToken())}. Ctrl+C to stop.`,
+      `figbridge hub on 127.0.0.1:${String(runtime.port)} (token fingerprint ${pairingCode(loadOrCreateToken())}). ` +
+        "To pair the Figma plugin, paste the token printed by `figbridge pair`. Ctrl+C to stop.",
     );
     await untilShutdown({ watchStdin: false });
     await runtime.close();

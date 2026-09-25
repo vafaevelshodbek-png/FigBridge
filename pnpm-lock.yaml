@@ -280,6 +280,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: 'catalog:'
         version: 2.1.0
+      '@napi-rs/canvas':
+        specifier: 'catalog:'
+        version: 1.0.9
       commander:
         specifier: 'catalog:'
         version: 15.0.0
