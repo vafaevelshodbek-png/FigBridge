@@ -121,7 +121,39 @@ async function fetchBlob(blob: string): Promise<Uint8Array> {
     headers: { authorization: `Bearer ${token ?? ""}` },
   });
   if (!response.ok) throw new Error(`blob ${blob}: HTTP ${String(response.status)}`);
-  return new Uint8Array(await response.arrayBuffer());
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const type = response.headers.get("content-type") ?? "";
+  return type.startsWith("image/") ? fitForFigma(bytes, type) : bytes;
+}
+
+/** Figma's createImage rejects images larger than this on either side. */
+const MAX_IMAGE_SIDE = 4096;
+
+/** Downscale oversized images here, where a canvas is available (the main thread has none). */
+async function fitForFigma(bytes: Uint8Array, type: string): Promise<Uint8Array> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(new Blob([bytes.slice()], { type }));
+  } catch {
+    return bytes; // Not decodable here (e.g. SVG); let Figma decide.
+  }
+  const factor = MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height);
+  if (factor >= 1) {
+    bitmap.close();
+    return bytes;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.floor(bitmap.width * factor));
+  canvas.height = Math.max(1, Math.floor(bitmap.height * factor));
+  const context = canvas.getContext("2d");
+  if (context === null) return bytes;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const png = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, type === "image/jpeg" ? "image/jpeg" : "image/png", 0.92);
+  });
+  return png === null ? bytes : new Uint8Array(await png.arrayBuffer());
 }
 
 async function uploadBlob(bytes: Uint8Array, mimeType: string): Promise<string> {

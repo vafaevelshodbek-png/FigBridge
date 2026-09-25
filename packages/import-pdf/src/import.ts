@@ -7,6 +7,9 @@
  *                                          └─ raster    → composited PNG layers (images, masks)
  *   then background → frame fill, cards group their content.
  */
+
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import {
   contentBlobId,
   type Paint,
@@ -58,15 +61,29 @@ export interface ImportResult {
 
 /** Background detection: a plain rectangle covering at least this share of the page. */
 const BACKGROUND_COVERAGE = 0.98;
+/**
+ * pdf.js loads its image decoders (JBIG2, JPEG 2000 — common in scans), CJK character maps
+ * and the standard 14 fonts from these folders; in Node they must be given as paths.
+ */
+const PDFJS_ROOT = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
+const PDFJS_ASSETS = {
+  wasmUrl: `${join(PDFJS_ROOT, "wasm")}/`,
+  cMapUrl: `${join(PDFJS_ROOT, "cmaps")}/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${join(PDFJS_ROOT, "standard_fonts")}/`,
+};
+
 /** Minimum raster scale: crisp on retina displays even for low-res sources. */
 const MIN_RASTER_SCALE = 2;
+/** Figma's createImage rejects images larger than this on either side. */
+const FIGMA_MAX_IMAGE_SIDE = 4096;
 
 export async function importPdf(
   data: Uint8Array,
   name: string,
   options: ImportOptions = {},
 ): Promise<ImportResult> {
-  const loading = getDocument({ data, verbosity: 0 });
+  const loading = getDocument({ data, verbosity: 0, ...PDFJS_ASSETS });
   const document = await loading.promise;
   try {
     const numbers = options.pages ?? Array.from({ length: document.numPages }, (_, i) => i + 1);
@@ -180,7 +197,11 @@ async function importPage(
     const scale = rasterScale(
       zone.items.map((i) => i.primitive),
       sources,
-      options.maxRasterScale ?? 3,
+      Math.min(
+        options.maxRasterScale ?? 3,
+        (FIGMA_MAX_IMAGE_SIDE - 1) /
+          Math.max(zone.box.x1 - zone.box.x0, zone.box.y1 - zone.box.y0, 1),
+      ),
     );
     const layer = compositeLayer(
       zone.items.map((i) => i.primitive),
@@ -325,7 +346,8 @@ function storeFor(page: PDFPageProxy, id: string) {
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- typed view of pdf.js's untyped object store
 function getObject<T>(page: PDFPageProxy, id: string): T | undefined {
   try {
-    return storeFor(page, id).get(id) as T;
+    // Objects pdf.js failed to decode resolve to null.
+    return (storeFor(page, id).get(id) as T | null) ?? undefined;
   } catch {
     return undefined;
   }
@@ -380,7 +402,7 @@ async function rasterSources(
 
 /** Resolution that keeps the sharpest source image at (at least) its native pixel density. */
 function rasterScale(items: readonly Primitive[], sources: CompositeSources, max: number): number {
-  let scale = MIN_RASTER_SCALE;
+  let scale = Math.min(MIN_RASTER_SCALE, max);
   for (const item of items) {
     if (item.kind !== "image") continue;
     const image = sources.image(item.source);
