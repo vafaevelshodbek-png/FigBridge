@@ -131,38 +131,66 @@ export function asRoundedRect(
     [box.x1, box.y1],
     [box.x0, box.y1],
   ];
+  const near = (a: number, b: number) => Math.abs(a - b) < EDGE_EPSILON;
+  const axisAligned = (a: Point, b: Point) => near(a[0], b[0]) || near(a[1], b[1]);
   let previous: Point | undefined;
+  let start: Point | undefined;
+  // A corner may be drawn with several curves; collect them until one lands on an edge.
+  let arc: { from: Point; points: Point[] } | undefined;
   for (const s of segments) {
+    if (arc !== undefined && s.op !== "C") return undefined;
     if (s.op === "M") {
       if (!onEdge(s.to)) return undefined;
       previous = s.to;
+      start = s.to;
     } else if (s.op === "L") {
-      if (previous === undefined || !onEdge(s.to)) return undefined;
-      const axisAligned =
-        Math.abs(s.to[0] - previous[0]) < EDGE_EPSILON ||
-        Math.abs(s.to[1] - previous[1]) < EDGE_EPSILON;
-      if (!axisAligned) return undefined;
+      if (previous === undefined || !onEdge(s.to) || !axisAligned(previous, s.to)) return undefined;
       previous = s.to;
     } else if (s.op === "C") {
       if (previous === undefined) return undefined;
-      const start = previous;
-      const mid: Point = [(start[0] + s.to[0]) / 2, (start[1] + s.to[1]) / 2];
-      let nearest = 0;
-      let best = Number.POSITIVE_INFINITY;
-      corners.forEach(([cx, cy], index) => {
-        const d = (cx - mid[0]) ** 2 + (cy - mid[1]) ** 2;
-        if (d < best) {
-          best = d;
-          nearest = index;
-        }
-      });
-      const radius = Math.max(Math.abs(s.to[0] - start[0]), Math.abs(s.to[1] - start[1]));
-      radii[nearest] = Math.max(radii[nearest] ?? 0, radius);
+      arc ??= { from: previous, points: [] };
+      arc.points.push(s.c1, s.c2, s.to);
       previous = s.to;
+      if (!onEdge(s.to)) continue;
+      const corner = cornerOf(arc.from, s.to, arc.points, corners, near);
+      if (corner === undefined) return undefined;
+      const radius = Math.max(Math.abs(s.to[0] - arc.from[0]), Math.abs(s.to[1] - arc.from[1]));
+      radii[corner] = Math.max(radii[corner] ?? 0, radius);
+      arc = undefined;
+    } else if (previous !== undefined && start !== undefined) {
+      // Z draws a straight line back to the start: it must be an edge too.
+      if (!axisAligned(previous, start)) return undefined;
+      previous = start;
     }
   }
+  if (arc !== undefined) return undefined;
   const limit = Math.min(box.x1 - box.x0, box.y1 - box.y0) / 2;
   return { box, radii: radii.map((r) => Math.min(r, limit)) as [number, number, number, number] };
+}
+
+/**
+ * Index of the rectangle corner that curves from `from` to `to` round: they must lie on the
+ * corner's two edges, and every point in between (control points included) inside the
+ * corner square they span. Undefined when the curves are not a corner.
+ */
+function cornerOf(
+  from: Point,
+  to: Point,
+  points: readonly Point[],
+  corners: readonly Point[],
+  near: (a: number, b: number) => boolean,
+): number | undefined {
+  const x0 = Math.min(from[0], to[0]) - 0.5;
+  const x1 = Math.max(from[0], to[0]) + 0.5;
+  const y0 = Math.min(from[1], to[1]) - 0.5;
+  const y1 = Math.max(from[1], to[1]) + 0.5;
+  if (!points.every(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) return undefined;
+  const index = corners.findIndex(([cx, cy]) => {
+    const vertical = (p: Point) => near(p[0], cx);
+    const horizontal = (p: Point) => near(p[1], cy);
+    return (vertical(from) && horizontal(to)) || (horizontal(from) && vertical(to));
+  });
+  return index < 0 ? undefined : index;
 }
 
 /** SVG path data relative to `origin`, in the format Figma's vectorPaths accept. */

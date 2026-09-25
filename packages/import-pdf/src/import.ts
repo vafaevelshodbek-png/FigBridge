@@ -262,11 +262,19 @@ function isInvisible(p: PathPrimitive): boolean {
   );
 }
 
+/**
+ * A plain rectangle covering the page, and not clipped to less than the page: a fill seen
+ * through a ring-shaped or partial clip is content, not the background.
+ */
 function isPageRect(p: PathPrimitive, slide: Box): boolean {
-  const rect = asRoundedRect(p.segments);
-  if (rect === undefined || rect.radii.some((r) => r > 0)) return false;
-  const covered = intersect(rect.box, slide);
-  return covered !== undefined && area(covered) >= BACKGROUND_COVERAGE * area(slide);
+  const covers = (segments: PathPrimitive["segments"]) => {
+    const rect = asRoundedRect(segments);
+    if (rect === undefined || rect.radii.some((r) => r > 0)) return false;
+    const covered = intersect(rect.box, slide);
+    return covered !== undefined && area(covered) >= BACKGROUND_COVERAGE * area(slide);
+  };
+  // One rectangle is the same region under either fill rule; rings fail asRoundedRect.
+  return covers(p.segments) && p.clips.every((clip) => covers(clip.segments));
 }
 
 /** Identical shapes painted twice (common in exported decks) would double opacity and clutter layers. */
