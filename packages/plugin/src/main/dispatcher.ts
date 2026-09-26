@@ -9,6 +9,7 @@ import { type HandlerContext, type HandlerTable, PluginError } from "./handlers/
 import type { FontLoader } from "./render/fonts.js";
 import type { ImageResolver } from "./render/paints.js";
 import type { UiBridge } from "./ui-bridge.js";
+import type { UndoLog } from "./undo.js";
 
 /** Results of the most recent idempotent calls, so a retry after reconnect is a no-op. */
 const IDEMPOTENCY_CACHE_SIZE = 64;
@@ -24,6 +25,7 @@ export class Dispatcher {
     private readonly fonts: FontLoader,
     private readonly images: ImageResolver,
     private readonly access: AccessControl,
+    private readonly undo: UndoLog,
     private readonly sizer: NodeSizer,
     private readonly notify: (message: string) => void = () => undefined,
   ) {}
@@ -70,6 +72,7 @@ export class Dispatcher {
     const ctx: HandlerContext = {
       ui: this.ui,
       access: this.access,
+      undo: this.undo,
       fonts: this.fonts,
       images: this.images,
       checkCancelled: () => {

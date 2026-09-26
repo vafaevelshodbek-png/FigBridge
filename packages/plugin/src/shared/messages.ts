@@ -18,7 +18,8 @@ export type UiToMain =
   | { kind: "access.set"; mode: AccessMode }
   | { kind: "pause.set"; paused: boolean }
   | { kind: "approval.answer"; id: string; answer: "once" | "session" | "deny" }
-  | { kind: "label.set"; label: string };
+  | { kind: "label.set"; label: string }
+  | { kind: "undo.run" };
 
 /** Main → UI. */
 export type MainToUi =
@@ -44,7 +45,9 @@ export type MainToUi =
       risk: "write" | "destructive";
     }
   | { kind: "approval.closed"; id: string }
-  | { kind: "activity"; entry: ActivityEntry };
+  | { kind: "activity"; entry: ActivityEntry }
+  /** The agent change "Undo agent" would revert; label undefined when there is none. */
+  | { kind: "undo"; label?: string; possible: boolean };
 
 /** One line of the plugin's activity feed. */
 export interface ActivityEntry {

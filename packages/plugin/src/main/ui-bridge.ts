@@ -40,6 +40,7 @@ export class UiBridge {
       case "pause.set":
       case "approval.answer":
       case "label.set":
+      case "undo.run":
         return false;
     }
   }

@@ -11,6 +11,7 @@ import * as read from "./handlers/read.js";
 import * as write from "./handlers/write.js";
 import { FontLoader } from "./render/fonts.js";
 import { UiBridge } from "./ui-bridge.js";
+import { UndoLog } from "./undo.js";
 
 declare const __PLUGIN_VERSION__: string;
 declare const __html__: string;
@@ -109,9 +110,26 @@ const sizer: NodeSizer = async (id) => {
   return { type: node.type, size: 1 + descendants };
 };
 
-const dispatcher = new Dispatcher(handlers, ui, fonts, resolveImage, access, sizer, (message) => {
-  figma.notify(message, { timeout: 1500 });
+const undo = new UndoLog((latest) => {
+  ui.post({
+    kind: "undo",
+    ...(latest === undefined ? {} : { label: latest.label }),
+    possible: latest !== undefined && latest.kind !== "deleted",
+  });
 });
+
+const dispatcher = new Dispatcher(
+  handlers,
+  ui,
+  fonts,
+  resolveImage,
+  access,
+  undo,
+  sizer,
+  (message) => {
+    figma.notify(message, { timeout: 1500 });
+  },
+);
 
 figma.showUI(__html__, { width: 320, height: 460, title: "figbridge", themeColors: true });
 ui.post({
@@ -145,6 +163,15 @@ figma.ui.onmessage = (message: UiToMain) => {
       return;
     case "approval.answer":
       approvals.get(message.id)?.(message.answer);
+      return;
+    case "undo.run":
+      void undo.undo(fonts).then((detail) => {
+        ui.post({
+          kind: "activity",
+          entry: { id: `undo-${String(Date.now())}`, method: "undo", status: "done", detail },
+        });
+        figma.notify(`figbridge: ${detail}`, { timeout: 2000 });
+      });
       return;
     case "label.set":
       figma.root.setPluginData(LABEL_KEY, message.label.trim().slice(0, 80));

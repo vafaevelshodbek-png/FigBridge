@@ -21,6 +21,7 @@ export interface AgentPanelElements {
   mode: HTMLSelectElement;
   danger: HTMLElement;
   pause: HTMLButtonElement;
+  undo: HTMLButtonElement;
   busy: HTMLElement;
   approvals: HTMLElement;
   activity: HTMLElement;
@@ -40,6 +41,9 @@ export class AgentPanel {
     el.pause.onclick = () => {
       toMain({ kind: "pause.set", paused: !this.#paused });
     };
+    el.undo.onclick = () => {
+      toMain({ kind: "undo.run" });
+    };
   }
 
   /** Route a main-thread message; false when it is not for the panel. */
@@ -56,6 +60,14 @@ export class AgentPanel {
         return true;
       case "activity":
         this.#activity(message.entry);
+        return true;
+      case "undo":
+        this.el.undo.hidden = message.label === undefined;
+        this.el.undo.textContent = `Undo agent: ${message.label ?? ""}`;
+        this.el.undo.title = message.possible
+          ? "Reverts only the agent's change, not your own edits"
+          : "A deletion cannot be reverted by the plugin; use Ctrl+Z in Figma";
+        this.el.undo.disabled = !message.possible;
         return true;
       case "hello-info":
       case "response":

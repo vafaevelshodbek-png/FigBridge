@@ -6,10 +6,13 @@ import type { AccessControl } from "../access.js";
 import type { FontLoader } from "../render/fonts.js";
 import type { ImageResolver } from "../render/paints.js";
 import type { UiBridge } from "../ui-bridge.js";
+import type { UndoLog } from "../undo.js";
 
 export interface HandlerContext {
   ui: UiBridge;
   access: AccessControl;
+  /** Records what the agent changed, for "Undo agent" in the plugin window. */
+  undo: UndoLog;
   fonts: FontLoader;
   images: ImageResolver;
   /** Throws a CANCELLED error when the hub cancelled this request. */

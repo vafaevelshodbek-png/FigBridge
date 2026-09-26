@@ -36,6 +36,7 @@ const panel = new AgentPanel(
     mode: element("mode", HTMLSelectElement),
     danger: element("danger", HTMLElement),
     pause: element("pause", HTMLButtonElement),
+    undo: element("undo", HTMLButtonElement),
     busy: element("busy", HTMLElement),
     approvals: element("approvals", HTMLElement),
     activity: element("activity", HTMLElement),
@@ -253,6 +254,7 @@ window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
     case "approval.request":
     case "approval.closed":
     case "activity":
+    case "undo":
       return; // handled by the agent panel above
   }
 };

@@ -584,3 +584,79 @@ describe("agent access", () => {
     expect(entries).toEqual(["running", "done"]);
   });
 });
+
+describe("undo agent", () => {
+  beforeEach(() => {
+    send({ kind: "access.set", mode: "unrestricted" });
+  });
+
+  const lastUndo = () =>
+    posted()
+      .filter((m) => m.kind === "undo")
+      .at(-1);
+
+  async function undoNow(): Promise<string | undefined> {
+    const before = posted().length;
+    send({ kind: "undo.run" });
+    await vi.waitFor(() => {
+      expect(
+        posted()
+          .slice(before)
+          .some((m) => m.kind === "activity" && m.entry.method === "undo"),
+      ).toBe(true);
+    });
+    const entry = posted()
+      .slice(before)
+      .find((m) => m.kind === "activity" && m.entry.method === "undo");
+    return entry?.kind === "activity" ? entry.entry.detail : undefined;
+  }
+
+  it("removes what the agent created and leaves the user's layers alone", async () => {
+    const mine = fake.createRectangle();
+    mine.name = "Mine";
+    fake.currentPage.appendChild(mine);
+    const copy = ok(await call("node.clone", { nodeId: mine.id }));
+    expect(lastUndo()).toMatchObject({ label: 'duplicate "Mine"', possible: true });
+    // The user keeps working after the agent.
+    mine.name = "Mine, edited";
+    expect(await undoNow()).toBe('Undid: duplicate "Mine" (1 removed)');
+    expect(await fake.getNodeByIdAsync(copy["id"] as string)).toBeNull();
+    expect(mine.name).toBe("Mine, edited");
+    expect(lastUndo()).toMatchObject({ possible: false });
+  });
+
+  it("puts changed properties back", async () => {
+    const node = fake.createRectangle();
+    node.name = "Card";
+    fake.currentPage.appendChild(node);
+    node.x = 10;
+    ok(
+      await call("node.update", {
+        nodeId: node.id,
+        props: { name: "Renamed", x: 200, opacity: 0.5 },
+      }),
+    );
+    expect(lastUndo()).toMatchObject({ label: 'change "Renamed"', possible: true });
+    await undoNow();
+    expect([node.name, node.x, node.opacity]).toEqual(["Card", 10, 1]);
+  });
+
+  it("steps back through several agent changes, newest first", async () => {
+    const node = fake.createRectangle();
+    fake.currentPage.appendChild(node);
+    ok(await call("node.update", { nodeId: node.id, props: { name: "one" } }));
+    ok(await call("node.update", { nodeId: node.id, props: { name: "two" } }));
+    await undoNow();
+    expect(node.name).toBe("one");
+    await undoNow();
+    expect(node.name).toBe("");
+  });
+
+  it("says plainly that a deletion cannot be undone by the plugin", async () => {
+    const node = fake.createRectangle();
+    fake.currentPage.appendChild(node);
+    ok(await call("node.delete", { nodeIds: [node.id] }));
+    expect(lastUndo()).toMatchObject({ label: "delete 1 layer", possible: false });
+    expect(await undoNow()).toMatch(/cannot be undone by the plugin — use Ctrl\+Z/);
+  });
+});

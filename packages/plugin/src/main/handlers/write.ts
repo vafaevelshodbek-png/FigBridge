@@ -4,6 +4,7 @@
 import type { SceneNode as SceneNodeIR } from "@figbridge/scene";
 import { hexToRgb } from "../render/geometry.js";
 import { SceneRenderer } from "../render/scene-renderer.js";
+import { capture } from "../undo.js";
 import { type Handler, PluginError, requireContainer, requireNode } from "./context.js";
 import { summarize } from "./summary.js";
 
@@ -32,6 +33,11 @@ export const sceneRender: Handler<"scene.render"> = async (
   });
   const frame = await renderer.renderSlide(slide, parent, position.x, position.y);
   figma.commitUndo();
+  ctx.undo.record({
+    kind: "created",
+    label: `${replaceId === undefined ? "add" : "replace with"} slide "${slide.name}"`,
+    nodeIds: [frame.id],
+  });
   for (const [wanted, used] of ctx.fonts.substitutions)
     warnings.push(`font ${wanted} replaced by ${used}`);
   return { frameId: frame.id, created: renderer.created, warnings };
@@ -48,6 +54,11 @@ export const nodesCreate: Handler<"nodes.create"> = async ({ nodes, parentId }, 
   });
   const created = await renderer.renderChildren(nodes, parent);
   figma.commitUndo();
+  ctx.undo.record({
+    kind: "created",
+    label: `create ${String(created.length)} layer${created.length === 1 ? "" : "s"}`,
+    nodeIds: created.map((node) => node.id),
+  });
   return { ids: created.map((node) => node.id), warnings };
 };
 
@@ -55,6 +66,7 @@ export const nodeUpdate: Handler<"node.update"> = async ({ nodeId, props }, ctx)
   const node = await requireNode(nodeId);
   if (!("x" in node)) throw new PluginError("VALIDATION", `Node ${nodeId} is not a layer.`);
   const layer = node;
+  const before = capture(layer, props);
   if (props.name !== undefined) layer.name = props.name;
   if (props.text !== undefined) {
     if (layer.type !== "TEXT")
@@ -83,10 +95,11 @@ export const nodeUpdate: Handler<"node.update"> = async ({ nodeId, props }, ctx)
     (layer as SceneNode & CornerMixin).cornerRadius = props.cornerRadius;
   }
   figma.commitUndo();
+  ctx.undo.record({ kind: "updated", label: `change "${layer.name}"`, nodeId: layer.id, before });
   return summarize(layer);
 };
 
-export const nodeDelete: Handler<"node.delete"> = async ({ nodeIds }) => {
+export const nodeDelete: Handler<"node.delete"> = async ({ nodeIds }, ctx) => {
   const deleted: string[] = [];
   const missing: string[] = [];
   for (const id of nodeIds) {
@@ -98,10 +111,16 @@ export const nodeDelete: Handler<"node.delete"> = async ({ nodeIds }) => {
     }
   }
   figma.commitUndo();
+  if (deleted.length > 0) {
+    ctx.undo.record({
+      kind: "deleted",
+      label: `delete ${String(deleted.length)} layer${deleted.length === 1 ? "" : "s"}`,
+    });
+  }
   return { deleted, missing };
 };
 
-export const nodeClone: Handler<"node.clone"> = async ({ nodeId, parentId, x, y }) => {
+export const nodeClone: Handler<"node.clone"> = async ({ nodeId, parentId, x, y }, ctx) => {
   const node = await requireNode(nodeId);
   if (!("clone" in node)) throw new PluginError("VALIDATION", `Node ${nodeId} cannot be cloned.`);
   const copy = (node as SceneNode).clone();
@@ -109,6 +128,7 @@ export const nodeClone: Handler<"node.clone"> = async ({ nodeId, parentId, x, y 
   if (x !== undefined) copy.x = x;
   if (y !== undefined) copy.y = y;
   figma.commitUndo();
+  ctx.undo.record({ kind: "created", label: `duplicate "${copy.name}"`, nodeIds: [copy.id] });
   return summarize(copy);
 };
 
