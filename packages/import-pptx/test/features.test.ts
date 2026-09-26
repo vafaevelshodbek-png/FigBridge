@@ -468,6 +468,22 @@ describe("SmartArt and embedded objects", () => {
     expect(warnings).toContainEqual(expect.stringContaining("diagram object skipped"));
   });
 
+  it("an embedded object wrapped in AlternateContent shows its fallback preview", async () => {
+    const pic =
+      `<p:pic><p:nvPicPr><p:cNvPr id="8" name="Preview"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>` +
+      `<p:blipFill><a:blip r:embed="rImg"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="3657600" cy="1828800"/></a:xfrm><a:prstGeom prst="rect"/></p:spPr></p:pic>`;
+    const data =
+      `<a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole"><mc:AlternateContent>` +
+      `<mc:Choice Requires="v"><p:oleObj r:id="rOle"><p:embed/></p:oleObj></mc:Choice>` +
+      `<mc:Fallback><p:oleObj r:id="rOle"><p:embed/>${pic}</p:oleObj></mc:Fallback></mc:AlternateContent></a:graphicData>`;
+    const { nodes } = await nodesOf(frame(data), {
+      rels: `<Relationship Id="rImg" Target="../media/image1.png"/>`,
+      parts: { "ppt/media/image1.png": PNG },
+    });
+    expect(nodes.map((n) => n.type)).toEqual(["group", "image"]);
+  });
+
   it("an embedded object shows its preview picture", async () => {
     const pic =
       `<p:pic><p:nvPicPr><p:cNvPr id="8" name="Preview"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>` +

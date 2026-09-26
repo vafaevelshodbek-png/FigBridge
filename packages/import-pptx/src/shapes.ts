@@ -293,7 +293,12 @@ function frameNodes(
     const nodes = diagramNodes(ctx, data, box, options, groups);
     if (nodes !== undefined) return wrap(ctx, el, nodes, "SmartArt");
   }
-  const ole = child(data, "oleObj");
+  // Newer files wrap the object in mc:AlternateContent; the Fallback branch holds the preview.
+  const alternate = child(data, "AlternateContent");
+  const ole =
+    child(data, "oleObj") ??
+    child(child(alternate, "Fallback"), "oleObj") ??
+    child(child(alternate, "Choice"), "oleObj");
   if (ole !== undefined) {
     // An embedded object (Excel sheet, equation…) keeps a preview picture; show that.
     const preview = walkTree(ctx, ole, options, groups);
