@@ -4,6 +4,7 @@
  * local box (0..w, 0..h). Rotation and flips stay on the node, as in Figma.
  */
 import { type CornerRadii, ellipseArcCubics } from "@figbridge/scene";
+import { arcPresetPaths } from "./geometry-presets.js";
 import { DEGREE, PERCENT } from "./units.js";
 import { attr, child, childrenOf, num, type XmlElement } from "./xml.js";
 
@@ -27,14 +28,8 @@ function adjustments(prstGeom: XmlElement | undefined): Map<string, number> {
   return out;
 }
 
-/** Presets that are straight lines across the box (connectors). */
-export const LINE_PRESETS: ReadonlySet<string> = new Set([
-  "line",
-  "straightConnector1",
-  "bentConnector2",
-  "bentConnector3",
-  "curvedConnector3",
-]);
+/** Presets that are straight lines across the box (bent and curved ones: geometry-presets). */
+export const LINE_PRESETS: ReadonlySet<string> = new Set(["line", "straightConnector1"]);
 
 /** Geometry of a shape's `spPr`. Rect is the default when no geometry is given. */
 export function geometryOf(spPr: XmlElement | undefined, w: number, h: number): Geometry {
@@ -69,7 +64,9 @@ export function geometryOf(spPr: XmlElement | undefined, w: number, h: number): 
     }
     case "ellipse":
       return { kind: "ellipse" };
-    default:
+    default: {
+      const arcs = arcPresetPaths(preset, w, h, adj);
+      if (arcs !== undefined) return { kind: "path", paths: arcs };
       if (LINE_PRESETS.has(preset)) {
         return {
           kind: "path",
@@ -79,6 +76,7 @@ export function geometryOf(spPr: XmlElement | undefined, w: number, h: number): 
         };
       }
       return presetPath(preset, w, h) ?? { kind: "unsupported", preset };
+    }
   }
 }
 

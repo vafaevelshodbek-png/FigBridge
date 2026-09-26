@@ -141,12 +141,61 @@ describe("geometry", () => {
       expect(nodes[0].radii[0]).toBeGreaterThan(0);
   });
 
+  it.each([
+    "pie",
+    "chord",
+    "arc",
+    "blockArc",
+    "donut",
+    "leftBrace",
+    "rightBrace",
+    "bentConnector2",
+    "bentConnector3",
+    "bentConnector4",
+    "bentConnector5",
+    "curvedConnector2",
+    "curvedConnector3",
+  ])("%s is drawn as its real shape, in Figma's path subset", async (prst) => {
+    const { nodes, warnings } = await nodesOf(
+      shape(
+        "s",
+        `<a:solidFill><a:srgbClr val="888888"/></a:solidFill><a:ln><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>`,
+        { prst },
+      ),
+    );
+    expect(warnings).toEqual([]);
+    const node = nodes[0];
+    expect(node?.type).toBe("vector");
+    if (node?.type === "vector")
+      for (const path of node.paths) expect(isFigmaPath(path.d)).toBe(true);
+  });
+
+  it("an elbow connector bends at its adjust point instead of cutting across", async () => {
+    const { nodes } = await nodesOf(
+      shape(
+        "elbow",
+        `<a:ln><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln>`.replace("", ""),
+        {
+          prst: "bentConnector3",
+          w: 1_000_000,
+          h: 500_000,
+        },
+      ).replace("<a:avLst/>", '<a:avLst><a:gd name="adj1" fmla="val 25000"/></a:avLst>'),
+    );
+    const node = nodes[0];
+    // 1 000 000 EMU wide → the bend at 25 % sits a quarter of the way along.
+    const w = node?.type === "vector" ? node.w : 0;
+    expect(node?.type === "vector" ? node.paths[0]?.d : "").toBe(
+      `M 0 0 L ${String(Math.round(w * 25) / 100)} 0 L ${String(Math.round(w * 25) / 100)} ${String(node?.type === "vector" ? node.h : 0)} L ${String(w)} ${String(node?.type === "vector" ? node.h : 0)}`,
+    );
+  });
+
   it("unknown presets fall back to their box with a warning", async () => {
     const { nodes, warnings } = await nodesOf(
-      shape("star", `<a:solidFill><a:srgbClr val="888888"/></a:solidFill>`, { prst: "star5" }),
+      shape("star", `<a:solidFill><a:srgbClr val="888888"/></a:solidFill>`, { prst: "funnel" }),
     );
     expect(nodes[0]?.type).toBe("rect");
-    expect(warnings).toContainEqual(expect.stringContaining("star5"));
+    expect(warnings).toContainEqual(expect.stringContaining("funnel"));
   });
 
   it("custom geometry with arcs becomes Figma-compatible paths", async () => {

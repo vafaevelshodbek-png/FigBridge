@@ -34,13 +34,51 @@ const OFFICE_COLORS = `
 
 const RELATIONSHIPS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-/** Declare the `r:` prefix on the root element, as real parts do (r:id is namespace-bound). */
+/** Namespaces real parts declare on their root (r:id is namespace-bound; other readers need all). */
+const NAMESPACES = [
+  `xmlns:r="${RELATIONSHIPS_NS}"`,
+  'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"',
+  'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"',
+  'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"',
+  'xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"',
+  'xmlns:dsp="http://schemas.microsoft.com/office/drawing/2008/diagram"',
+].join(" ");
+
 function withRelationshipsNs(xml: string): string {
-  return xml.replace(/^<([\w:]+)/, `<$1 xmlns:r="${RELATIONSHIPS_NS}"`);
+  if (xml.startsWith("<Types") || xml.startsWith("<Relationships")) return xml;
+  return xml.replace(/^<([\w:]+)/, `<$1 ${NAMESPACES}`);
+}
+
+const OFFICE_DOCUMENT =
+  "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
+const PRESENTATIONML = "application/vnd.openxmlformats-officedocument.presentationml";
+const CONTENT_TYPES: Record<string, string> = {
+  "ppt/presentation.xml": `${PRESENTATIONML}.presentation.main+xml`,
+  slides: `${PRESENTATIONML}.slide+xml`,
+  slideLayouts: `${PRESENTATIONML}.slideLayout+xml`,
+  slideMasters: `${PRESENTATIONML}.slideMaster+xml`,
+  theme: "application/vnd.openxmlformats-officedocument.theme+xml",
+  charts: "application/vnd.openxmlformats-officedocument.drawingml.chart+xml",
+};
+
+function contentTypes(parts: string[]): string {
+  const overrides = parts
+    .filter((p) => p.endsWith(".xml") && !p.includes("_rels"))
+    .flatMap((p) => {
+      const type = CONTENT_TYPES[p] ?? CONTENT_TYPES[p.split("/")[1] ?? ""];
+      return type === undefined ? [] : [`<Override PartName="/${p}" ContentType="${type}"/>`];
+    });
+  return (
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Default Extension="png" ContentType="image/png"/><Default Extension="gif" ContentType="image/gif"/>` +
+    `${overrides.join("")}</Types>`
+  );
 }
 
 function rels(entries: string): string {
-  return `<Relationships>${entries}</Relationships>`;
+  return `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${entries}</Relationships>`;
 }
 
 export function buildPptx(spec: DeckSpec): Uint8Array {
@@ -53,7 +91,8 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
   );
   put(
     "ppt/presentation.xml",
-    `<p:presentation><p:sldIdLst>${ids.join("")}</p:sldIdLst>` +
+    `<p:presentation><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rMaster"/></p:sldMasterIdLst>` +
+      `<p:sldIdLst>${ids.join("")}</p:sldIdLst>` +
       `<p:sldSz cx="${String(spec.width ?? 12_192_000)}" cy="${String(spec.height ?? 6_858_000)}"/></p:presentation>`,
   );
   put(
@@ -62,9 +101,11 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
       spec.slides
         .map(
           (_, i) =>
-            `<Relationship Id="rId${String(i + 1)}" Target="slides/slide${String(i + 1)}.xml"/>`,
+            `<Relationship Id="rId${String(i + 1)}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${String(i + 1)}.xml"/>`,
         )
-        .join(""),
+        .join("") +
+        `<Relationship Id="rMaster" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>` +
+        `<Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>`,
     ),
   );
   put(
@@ -77,11 +118,14 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
   );
   put(
     "ppt/slideMasters/slideMaster1.xml",
-    `<p:sldMaster><p:cSld><p:spTree/></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/></p:sldMaster>`,
+    `<p:sldMaster><p:cSld><p:spTree/></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rLayout"/></p:sldLayoutIdLst></p:sldMaster>`,
   );
   put(
     "ppt/slideMasters/_rels/slideMaster1.xml.rels",
-    rels(`<Relationship Id="rId1" Target="../theme/theme1.xml"/>`),
+    rels(
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>` +
+        `<Relationship Id="rLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>`,
+    ),
   );
   put(
     "ppt/slideLayouts/slideLayout1.xml",
@@ -89,7 +133,9 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
   );
   put(
     "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
-    rels(`<Relationship Id="rId1" Target="../slideMasters/slideMaster1.xml"/>`),
+    rels(
+      `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>`,
+    ),
   );
   spec.slides.forEach((slide, i) => {
     const n = String(i + 1);
@@ -100,11 +146,17 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
     put(
       `ppt/slides/_rels/slide${n}.xml.rels`,
       rels(
-        `<Relationship Id="rLayout" Target="../slideLayouts/slideLayout1.xml"/>${slide.rels ?? ""}`,
+        `<Relationship Id="rLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>${slide.rels ?? ""}`,
       ),
     );
   });
   for (const [path, content] of Object.entries(spec.parts ?? {})) put(path, content);
+  // Package plumbing other readers (PowerPoint, LibreOffice) require.
+  put(
+    "_rels/.rels",
+    rels(`<Relationship Id="rDoc" Type="${OFFICE_DOCUMENT}" Target="ppt/presentation.xml"/>`),
+  );
+  put("[Content_Types].xml", contentTypes(Object.keys(files)));
   return zipSync(files);
 }
 
