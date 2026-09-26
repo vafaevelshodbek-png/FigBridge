@@ -485,3 +485,20 @@ describe("SmartArt and embedded objects", () => {
     expect(nodes.map((n) => n.type)).toEqual(["group", "image"]);
   });
 });
+
+describe("text details", () => {
+  it("superscript and subscript runs are set smaller", async () => {
+    const body =
+      `<p:txBody><a:bodyPr/><a:p><a:r><a:rPr sz="2400"/><a:t>S</a:t></a:r>` +
+      `<a:r><a:rPr sz="2400" baseline="30000"/><a:t>k</a:t></a:r>` +
+      `<a:r><a:rPr sz="2400" baseline="-25000"/><a:t>t</a:t></a:r></a:p></p:txBody>`;
+    const xml = shape("t", "").replace("</p:spPr>", `</p:spPr>${body}`);
+    const { nodes } = await nodesOf(xml);
+    const text = nodes.find((n) => n.type === "text");
+    const sizes = text?.type === "text" ? text.runs.map((r) => r.fontSize) : [];
+    expect(sizes).toHaveLength(3);
+    const [normal, sup, sub] = sizes;
+    expect(sup).toBeCloseTo((normal ?? 0) * (2 / 3), 1);
+    expect(sub).toBeCloseTo((normal ?? 0) * (2 / 3), 1);
+  });
+});

@@ -43,7 +43,15 @@ interface RunProps {
   spc?: number;
   font?: string;
   fill?: Paint;
+  /** Superscript (> 0) or subscript (< 0) offset in thousandths of a percent. */
+  baseline?: number;
 }
+
+/**
+ * Size of superscript and subscript text relative to the run (PowerPoint's own ratio).
+ * Figma's Plugin API cannot shift a baseline, so the size is what carries the meaning.
+ */
+const SCRIPT_SCALE = 2 / 3;
 
 function spacing(el: XmlElement | undefined): ParagraphProps["lnSpc"] {
   const pct = child(el, "spcPct");
@@ -86,6 +94,8 @@ function mergeRun(ctx: SlideContext, into: RunProps, el: XmlElement | undefined)
   if (cap !== undefined) into.cap = cap;
   const spc = attr(el, "spc");
   if (spc !== undefined) into.spc = Number(spc);
+  const baseline = attr(el, "baseline");
+  if (baseline !== undefined) into.baseline = Number(baseline);
   const typeface = resolveTypeface(ctx.theme, attr(child(el, "latin"), "typeface"));
   if (typeface !== undefined) into.font = typeface;
   const color = resolveColor(child(el, "solidFill"), ctx.colors);
@@ -285,7 +295,10 @@ function toRun(
     end,
     fontFamily: family,
     fontStyle: style,
-    fontSize: round(ptToPx(ctx, ((props.sz ?? DEFAULT_SIZE) / 100) * scale)),
+    fontSize: round(
+      ptToPx(ctx, ((props.sz ?? DEFAULT_SIZE) / 100) * scale) *
+        (props.baseline !== undefined && props.baseline !== 0 ? SCRIPT_SCALE : 1),
+    ),
     fill: props.fill ?? { type: "solid", color: "#000000", opacity: 1 },
     letterSpacing: round(ptToPx(ctx, (props.spc ?? 0) / 100)),
     textCase: props.cap === "all" ? "upper" : "original",
