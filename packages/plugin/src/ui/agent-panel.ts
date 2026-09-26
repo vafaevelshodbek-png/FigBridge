@@ -1,5 +1,6 @@
 /**
- * The agent section of the plugin window: access mode, pause and stop, approval requests
+ * The agent section of the plugin window: access mode, pause (which also stops running work),
+ * approval requests
  * and a feed of recent calls. Decisions happen in the main thread (see main/access.ts);
  * this only shows state and sends the user's choices back.
  */
@@ -20,7 +21,6 @@ export interface AgentPanelElements {
   mode: HTMLSelectElement;
   danger: HTMLElement;
   pause: HTMLButtonElement;
-  stop: HTMLButtonElement;
   busy: HTMLElement;
   approvals: HTMLElement;
   activity: HTMLElement;
@@ -39,9 +39,6 @@ export class AgentPanel {
     };
     el.pause.onclick = () => {
       toMain({ kind: "pause.set", paused: !this.#paused });
-    };
-    el.stop.onclick = () => {
-      toMain({ kind: "stop" });
     };
   }
 

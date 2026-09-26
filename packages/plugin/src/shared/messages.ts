@@ -18,7 +18,6 @@ export type UiToMain =
   | { kind: "access.set"; mode: AccessMode }
   | { kind: "pause.set"; paused: boolean }
   | { kind: "approval.answer"; id: string; answer: "once" | "session" | "deny" }
-  | { kind: "stop" }
   | { kind: "label.set"; label: string };
 
 /** Main → UI. */

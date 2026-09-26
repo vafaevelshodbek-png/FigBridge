@@ -30,12 +30,12 @@ const tokenInput = element("token", HTMLInputElement);
 const labelForm = element("label-form", HTMLFormElement);
 const labelInput = element("label", HTMLInputElement);
 const forgetButton = element("forget", HTMLButtonElement);
+const filesList = element("files", HTMLElement);
 const panel = new AgentPanel(
   {
     mode: element("mode", HTMLSelectElement),
     danger: element("danger", HTMLElement),
     pause: element("pause", HTMLButtonElement),
-    stop: element("stop", HTMLButtonElement),
     busy: element("busy", HTMLElement),
     approvals: element("approvals", HTMLElement),
     activity: element("activity", HTMLElement),
@@ -48,6 +48,8 @@ const panel = new AgentPanel(
 let token: string | null = null;
 let info: { file: string; label: string; editorType: string; pluginVersion: string } | undefined;
 let connection: Connection | undefined;
+/** This window's session id while connected. */
+let session: string | undefined;
 let storageTicket = 0;
 const storageWaiters = new Map<number, (value: string | null) => void>();
 
@@ -84,7 +86,9 @@ function render(state: ConnectionState | { status: "pairing" }): void {
   pairForm.hidden = state.status !== "pairing" && state.status !== "unauthorized";
   switch (state.status) {
     case "connected":
-      detailEl.textContent = `${info?.file ?? ""} · session ${state.session}`;
+      detailEl.textContent = `${info?.label || (info?.file ?? "")} · session ${state.session}`;
+      session = state.session;
+      void refreshFiles();
       break;
     case "waiting":
       detailEl.textContent = `Start the hub: npx figbridge start (retry in ${String(Math.ceil(state.retryInMs / 1000))} s)`;
@@ -265,6 +269,35 @@ pairForm.onsubmit = (event) => {
   toMain({ kind: "storage.set", key: STORAGE_KEYS.token, value });
   connect();
 };
+
+/** How often the list of files open for AI is refreshed while connected. */
+const FILES_REFRESH_MS = 5_000;
+
+/** Show every file connected to the hub, this one first and marked. */
+async function refreshFiles(): Promise<void> {
+  if (token === null) return;
+  try {
+    const response = await fetch(`${HTTP}/sessions`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return;
+    const { sessions } = (await response.json()) as { sessions: { id: string; file: string }[] };
+    sessions.sort((a, b) => Number(b.id === session) - Number(a.id === session));
+    filesList.replaceChildren(
+      ...sessions.map((s) => {
+        const item = document.createElement("li");
+        item.textContent = s.id === session ? `${s.file} (this file)` : s.file;
+        if (s.id === session) item.dataset["current"] = "";
+        return item;
+      }),
+    );
+  } catch {
+    // The hub is restarting: the connection state already says so.
+  }
+}
+setInterval(() => {
+  if (session !== undefined) void refreshFiles();
+}, FILES_REFRESH_MS);
 
 labelForm.onsubmit = (event) => {
   event.preventDefault();

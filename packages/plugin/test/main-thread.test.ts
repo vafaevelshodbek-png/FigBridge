@@ -562,11 +562,11 @@ describe("agent access", () => {
     expect(ok(await call("session.info", {}))).toMatchObject({ paused: false });
   });
 
-  it("stop declines pending approvals and cancels running work", async () => {
+  it("pausing declines pending approvals and cancels running work", async () => {
     const node = frame();
     const change = start("node.update", { nodeId: node.id, props: { name: "A" } });
     await approvalFor(change.id);
-    send({ kind: "stop" });
+    send({ kind: "pause.set", paused: true });
     await vi.waitFor(() => {
       expect(change.response()).toMatchObject({ ok: false, error: { code: "DENIED" } });
     });

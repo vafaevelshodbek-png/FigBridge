@@ -4,6 +4,8 @@
 <meta charset="utf-8" />
 <style>
   :root { color-scheme: light dark; }
+  /* Author display rules (form { display: flex }) must not override the hidden attribute. */
+  [hidden] { display: none !important; }
   body { margin: 0; padding: 14px 16px; font: 12px/1.45 Inter, system-ui, sans-serif;
          background: var(--figma-color-bg, #fff); color: var(--figma-color-text, #1e1e1e); }
   #status { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
@@ -24,8 +26,14 @@
            display: flex; flex-direction: column; gap: 8px; }
   .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   label { font-weight: 600; flex: 1; }
-  select { font: inherit; padding: 4px 6px; border-radius: 5px; color: inherit; background: transparent;
+  select { font: inherit; padding: 4px 6px; border-radius: 5px; color: inherit;
+           background: var(--figma-color-bg, #fff);
            border: 1px solid var(--figma-color-border, #d9d9d9); }
+  /* The open list is drawn by the system: give options the theme's colours explicitly. */
+  option { background: var(--figma-color-bg, #fff); color: var(--figma-color-text, #1e1e1e); }
+  #files { margin: 0; padding: 0; list-style: none; font-size: 11px;
+           color: var(--figma-color-text-secondary, #6b6b6b); }
+  #files li[data-current] { color: inherit; font-weight: 600; }
   #danger { padding: 6px 8px; border-radius: 5px; font-weight: 600;
             background: var(--figma-color-bg-danger, #f24822); color: var(--figma-color-text-ondanger, #fff); }
   #busy { color: var(--figma-color-text-secondary, #6b6b6b); }
@@ -58,15 +66,18 @@
     <div id="danger" hidden>Unrestricted: the agent changes anything without asking. Resets to Ask when the plugin reopens.</div>
     <div class="row">
       <button id="pause" class="secondary" type="button">Pause agent</button>
-      <button id="stop" class="secondary" type="button">Stop</button>
       <span id="busy" hidden>Agent is working…</span>
     </div>
     <form id="label-form" class="row">
       <input id="label" autocomplete="off" spellcheck="false" maxlength="80"
-             placeholder="Name for agents (optional)" aria-label="Name this file for agents" />
+             placeholder="Name this file for agents" aria-label="Name this file for agents" />
       <button class="secondary" type="submit">Save</button>
     </form>
     <div id="approvals"></div>
+    <div>
+      <label for="files">Files open for AI</label>
+      <ul id="files"></ul>
+    </div>
     <ol id="activity" aria-label="Recent agent actions"></ol>
     <div class="row"><button id="forget" class="secondary" type="button">Forget pairing</button></div>
   </section>

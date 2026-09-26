@@ -39,7 +39,6 @@ export class UiBridge {
       case "access.set":
       case "pause.set":
       case "approval.answer":
-      case "stop":
       case "label.set":
         return false;
     }

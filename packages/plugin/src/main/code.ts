@@ -137,13 +137,14 @@ figma.ui.onmessage = (message: UiToMain) => {
       return;
     case "pause.set":
       access.setPaused(message.paused);
+      // Pausing also stops what is running and declines what is waiting for approval.
+      if (message.paused) {
+        dispatcher.cancelAll();
+        for (const answer of approvals.values()) answer("deny");
+      }
       return;
     case "approval.answer":
       approvals.get(message.id)?.(message.answer);
-      return;
-    case "stop":
-      dispatcher.cancelAll();
-      for (const answer of approvals.values()) answer("deny");
       return;
     case "label.set":
       figma.root.setPluginData(LABEL_KEY, message.label.trim().slice(0, 80));
