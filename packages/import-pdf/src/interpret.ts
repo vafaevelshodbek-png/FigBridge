@@ -136,7 +136,12 @@ export function interpret(
         t.matrix = multiply(t.matrix, [1, 0, 0, 1, (-item / 1000) * t.size * t.hScale, 0]);
         continue;
       }
-      const glyph = item as { unicode?: string; width?: number; isSpace?: boolean } | null;
+      const glyph = item as {
+        unicode?: string;
+        originalCharCode?: number;
+        width?: number;
+        isSpace?: boolean;
+      } | null;
       if (glyph === null) continue;
       const width = ((glyph.width ?? 0) / 1000) * t.size;
       const advance =
@@ -149,7 +154,7 @@ export function interpret(
       const scale = scaleOf(trm);
       if (t.renderMode !== TEXT_RENDER_INVISIBLE && scale > 0) {
         glyphs.push({
-          text: glyph.unicode ?? "",
+          text: glyphText(glyph.unicode, glyph.originalCharCode),
           x: trm[4],
           y: trm[5],
           advance: advance * scaleOf(multiply(gs.ctm, t.matrix)),
@@ -466,4 +471,14 @@ export function interpret(
     }
   }
   return { primitives, masks };
+}
+
+/**
+ * A glyph's text. Some subset fonts map a few glyphs (often the full stop) to U+FFFD in their
+ * ToUnicode table; their character code is then still plain ASCII, so fall back to it.
+ */
+export function glyphText(unicode: string | undefined, code: number | undefined): string {
+  if (unicode === "\uFFFD" && code !== undefined && code > 0x20 && code < 0x7f)
+    return String.fromCharCode(code);
+  return unicode ?? "";
 }

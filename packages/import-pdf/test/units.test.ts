@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseFontName } from "../src/fonts.js";
+import { glyphText } from "../src/interpret.js";
 import { multiply } from "../src/matrix.js";
 import { asRoundedRect, decodePath } from "../src/path.js";
 import type { Glyph } from "../src/primitives.js";
@@ -133,5 +134,14 @@ describe("text reconstruction", () => {
         .map((g) => g.text)
         .join(""),
     ).toBe("titi");
+  });
+});
+
+describe("glyph text", () => {
+  it("falls back to an ASCII character code when the font maps a glyph to U+FFFD", () => {
+    expect(glyphText("\uFFFD", 46)).toBe(".");
+    expect(glyphText("\uFFFD", 0x0416)).toBe("\uFFFD");
+    expect(glyphText("a", 46)).toBe("a");
+    expect(glyphText(undefined, undefined)).toBe("");
   });
 });
