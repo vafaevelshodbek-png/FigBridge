@@ -82,6 +82,11 @@ function imageSize(bytes: Uint8Array): { width: number; height: number } {
 export class FakeFigma {
   readonly mixed = Symbol("mixed");
   editorType: "figma" | "slides" = "figma";
+  /**
+   * Average glyph advance, as a share of the font size, used to lay text out when a text
+   * node sizes itself (textAutoResize). Raise it to simulate a wider replacement font.
+   */
+  textAdvance = 0.5;
   readonly images = new Map<string, { width: number; height: number }>();
   readonly availableFonts = new Set([
     "Inter\u0000Regular",
@@ -583,8 +588,11 @@ export class FakeNode {
     this.#range(start, end, "setRangeFontName");
     this.figma.requireFont(font, "setRangeFontName");
   }
+  #largestSize = 0;
+
   setRangeFontSize(start: number, end: number, size: number): void {
     this.#range(start, end, "setRangeFontSize");
+    this.#largestSize = Math.max(this.#largestSize, size);
     if (finite(size, "fontSize") < 1) fail(`fontSize must be >= 1, got ${String(size)}`);
   }
   setRangeFills(start: number, end: number, paints: readonly unknown[]): void {
@@ -631,7 +639,23 @@ export class FakeNode {
   set textAlignVertical(value: string) {
     if (!["TOP", "CENTER", "BOTTOM"].includes(value)) fail(`textAlignVertical: ${value}`);
   }
+  /** Rough layout: lines by character count, 1.2 × the largest size per line. */
+  #layOut(mode: string): void {
+    const size = this.#largestSize || this.#fontSize;
+    const lines = this.#characters.split("\n");
+    const advance = size * this.figma.textAdvance;
+    if (mode === "WIDTH_AND_HEIGHT") {
+      this.#width = Math.max(0.01, Math.max(...lines.map((l) => l.length)) * advance);
+      this.#height = Math.max(0.01, lines.length * size * 1.2);
+    } else if (mode === "HEIGHT") {
+      const perLine = Math.max(1, Math.floor(this.#width / advance));
+      const count = lines.reduce((sum, l) => sum + Math.max(1, Math.ceil(l.length / perLine)), 0);
+      this.#height = Math.max(0.01, count * size * 1.2);
+    }
+  }
+
   set textAutoResize(value: string) {
+    this.#layOut(value);
     if (!["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"].includes(value))
       fail(`textAutoResize: ${value}`);
   }

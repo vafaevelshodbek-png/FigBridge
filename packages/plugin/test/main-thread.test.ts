@@ -284,6 +284,10 @@ describe("write methods", () => {
     expect([frame.x, frame.y, frame.width, frame.height]).toEqual([100, 50, 400, 300]);
     expect(frame.children.map((c) => c.type)).toEqual(["TEXT", "RECTANGLE"]);
     expect(result["warnings"]).toEqual(["font Brand Sans Bold replaced by Inter Bold"]);
+    expect(posted()).toContainEqual({
+      kind: "fonts",
+      replaced: [{ wanted: "Brand Sans Bold", used: "Inter Bold" }],
+    });
     expect(fake.undoSteps).toBe(1);
     expect(posted().some((m) => m.kind === "progress")).toBe(true);
   });

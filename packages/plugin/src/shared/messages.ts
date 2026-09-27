@@ -47,7 +47,9 @@ export type MainToUi =
   | { kind: "approval.closed"; id: string }
   | { kind: "activity"; entry: ActivityEntry }
   /** The agent change "Undo agent" would revert; label undefined when there is none. */
-  | { kind: "undo"; label?: string; possible: boolean };
+  | { kind: "undo"; label?: string; possible: boolean }
+  /** Fonts replaced so far in this plugin run, for the user to install. */
+  | { kind: "fonts"; replaced: { wanted: string; used: string }[] };
 
 /** One line of the plugin's activity feed. */
 export interface ActivityEntry {

@@ -34,6 +34,8 @@
   #files { margin: 0; padding: 0; list-style: none; font-size: 11px;
            color: var(--figma-color-text-secondary, #6b6b6b); }
   #files li[data-current] { color: inherit; font-weight: 600; }
+  #fonts-list { margin: 0; padding: 0; list-style: none; font-size: 11px; }
+  .hint { margin: 4px 0 0; font-size: 11px; color: var(--figma-color-text-secondary, #6b6b6b); }
   #danger { padding: 6px 8px; border-radius: 5px; font-weight: 600;
             background: var(--figma-color-bg-danger, #f24822); color: var(--figma-color-text-ondanger, #fff); }
   #busy { color: var(--figma-color-text-secondary, #6b6b6b); }
@@ -75,6 +77,11 @@
       <button class="secondary" type="submit">Save</button>
     </form>
     <div id="approvals"></div>
+    <div id="fonts" hidden>
+      <label for="fonts-list">Fonts replaced</label>
+      <ul id="fonts-list"></ul>
+      <p class="hint">Install these fonts and import again to keep the original line breaks.</p>
+    </div>
     <div>
       <label for="files">Files open for AI</label>
       <ul id="files"></ul>

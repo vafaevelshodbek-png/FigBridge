@@ -86,7 +86,8 @@ describe.each(corpusFiles())("%s renders in Figma", (file) => {
       ? await importPdf(data, name, { pages: [1, 2, 3] })
       : await importPptx(data, name);
     const { warnings, frames } = await render(fake, result.scene.slides, result.blobs);
-    expect(warnings).toEqual([]);
+    // Overflow depends on real font metrics; the fake's text layout is only an estimate.
+    expect(warnings.filter((w) => !/ overflows: /.test(w))).toEqual([]);
     for (const [i, slide] of result.scene.slides.entries()) {
       const frame = frames[i];
       expect(frame).toBeDefined();
@@ -231,4 +232,63 @@ describe("the fake enforces Figma's limits", () => {
       text.characters = "hi";
     }).toThrow(/unloaded font/);
   });
+});
+
+describe("text overflow after font substitution", () => {
+  const textNode = (sizing: "fixed" | "height" | "width"): SceneNode => ({
+    id: "t",
+    name: "Headline",
+    type: "text",
+    x: 0,
+    y: 0,
+    w: 200,
+    h: 30,
+    rotation: 0,
+    flipX: false,
+    flipY: false,
+    opacity: 1,
+    visible: true,
+    characters: "Twenty letters here!",
+    runs: [
+      {
+        start: 0,
+        end: 20,
+        fontFamily: "Inter",
+        fontStyle: "Regular",
+        fontSize: 20,
+        fill: { type: "solid", color: "#000000", opacity: 1 },
+        letterSpacing: 0,
+        textCase: "original",
+        decoration: "none",
+      },
+    ],
+    paragraphs: [],
+    align: "left",
+    verticalAlign: "top",
+    sizing,
+  });
+  const page = (node: SceneNode): Slide => ({
+    name: "s",
+    width: 400,
+    height: 300,
+    background: [],
+    children: [node],
+  });
+
+  it("text that fits is not reported", async () => {
+    // 20 characters × 0.5 × 20 px = 200 px: exactly one line in a 200 px box.
+    const { warnings } = await render(fake, [page(textNode("fixed"))], new Map());
+    expect(warnings).toEqual([]);
+  });
+
+  it.each(["fixed", "height", "width"] as const)(
+    "a wider font overflowing a %s box is reported",
+    async (sizing) => {
+      fake.textAdvance = 0.75;
+      const { warnings, frames } = await render(fake, [page(textNode(sizing))], new Map());
+      expect(warnings).toEqual([expect.stringMatching(/^text "Headline" overflows/)]);
+      expect(frames[0]?.children[0]?.getPluginData("figbridge.overflow")).not.toBe("");
+      if (sizing === "fixed") expect(frames[0]?.children[0]?.height).toBe(30);
+    },
+  );
 });

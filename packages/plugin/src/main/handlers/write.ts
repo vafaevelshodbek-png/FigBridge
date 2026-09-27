@@ -50,6 +50,10 @@ export const sceneRender: Handler<"scene.render"> = async (
   });
   for (const [wanted, used] of ctx.fonts.substitutions)
     warnings.push(`font ${wanted} replaced by ${used}`);
+  ctx.ui.post({
+    kind: "fonts",
+    replaced: [...ctx.fonts.substitutions].map(([wanted, used]) => ({ wanted, used })),
+  });
   return { frameId: placed.id, created: renderer.created, warnings };
 };
 

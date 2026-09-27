@@ -112,6 +112,38 @@ export class SceneRenderer {
     }
   }
 
+  /**
+   * Measure, with the fonts Figma actually used, whether text still fits the room the source
+   * gave it; a replacement font often runs longer. Fixed boxes are measured by letting the
+   * height follow the content for a moment.
+   */
+  #checkOverflow(text: TextNode, node: Extract<SceneNodeIR, { type: "text" }>): void {
+    let needed: number;
+    let box: number;
+    let axis: "height" | "width";
+    if (node.sizing === "fixed") {
+      text.textAutoResize = "HEIGHT";
+      needed = text.height;
+      text.textAutoResize = "NONE";
+      text.resize(safeSize(node.w), safeSize(node.h));
+      box = node.h;
+      axis = "height";
+    } else if (node.sizing === "height") {
+      needed = text.height;
+      box = node.h;
+      axis = "height";
+    } else {
+      needed = text.width;
+      box = node.w;
+      axis = "width";
+    }
+    if (!overflows(needed, box)) return;
+    this.ctx.warnings.push(
+      `text "${node.name}" overflows: needs ${String(Math.round(needed))} px of ${axis}, the source gave ${String(Math.round(box))} px (a replacement font runs longer)`,
+    );
+    text.setPluginData("figbridge.overflow", String(Math.round(needed - box)));
+  }
+
   async #renderLeaf(
     node: Exclude<SceneNodeIR, { type: "group" }>,
     parent: BaseNode & ChildrenMixin,
@@ -169,11 +201,20 @@ export class SceneRenderer {
         await writeText(text, node, this.ctx.fonts);
         if (node.sizing === "fixed") text.resize(safeSize(node.w), safeSize(node.h));
         else if (node.sizing === "height") text.resize(safeSize(node.w), text.height);
+        this.#checkOverflow(text, node);
         place(text, { ...node, w: text.width, h: text.height });
         return text;
       }
     }
   }
+}
+
+/** Text is reported when it needs this much more room than the source gave it. */
+const OVERFLOW_RATIO = 1.08;
+const OVERFLOW_MIN_PX = 4;
+
+function overflows(needed: number, box: number): boolean {
+  return needed > box * OVERFLOW_RATIO && needed - box > OVERFLOW_MIN_PX;
 }
 
 function place(node: SceneNode & LayoutMixin, p: Placement): void {

@@ -22,6 +22,8 @@ export interface AgentPanelElements {
   danger: HTMLElement;
   pause: HTMLButtonElement;
   undo: HTMLButtonElement;
+  fonts: HTMLElement;
+  fontsList: HTMLElement;
   busy: HTMLElement;
   approvals: HTMLElement;
   activity: HTMLElement;
@@ -60,6 +62,16 @@ export class AgentPanel {
         return true;
       case "activity":
         this.#activity(message.entry);
+        return true;
+      case "fonts":
+        this.el.fonts.hidden = message.replaced.length === 0;
+        this.el.fontsList.replaceChildren(
+          ...message.replaced.map(({ wanted, used }) => {
+            const item = document.createElement("li");
+            item.textContent = `${wanted} → ${used}`;
+            return item;
+          }),
+        );
         return true;
       case "undo":
         this.el.undo.hidden = message.label === undefined;
