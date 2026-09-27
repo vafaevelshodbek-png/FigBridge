@@ -4,10 +4,14 @@
 import { contentBlobId, type ImagePaint } from "@figbridge/scene";
 import { clamp01 } from "./color.js";
 import type { SlideContext } from "./context.js";
+import { tiffToPng } from "./tiff.js";
 import { PERCENT } from "./units.js";
 import { attr, child, num, type XmlElement } from "./xml.js";
 
-type Sniffed = { kind: "raster"; mimeType: string } | { kind: "unsupported"; format: string };
+type Sniffed =
+  | { kind: "raster"; mimeType: string }
+  | { kind: "tiff" }
+  | { kind: "unsupported"; format: string };
 
 /** Identify an image by its magic bytes (file extensions in packages are unreliable). */
 export function sniffImage(bytes: Uint8Array): Sniffed {
@@ -23,7 +27,7 @@ export function sniffImage(bytes: Uint8Array): Sniffed {
     return { kind: "unsupported", format: "WMF" };
   if (at(0) === 0x42 && at(1) === 0x4d) return { kind: "unsupported", format: "BMP" };
   if ((at(0) === 0x49 && at(1) === 0x49) || (at(0) === 0x4d && at(1) === 0x4d))
-    return { kind: "unsupported", format: "TIFF" };
+    return { kind: "tiff" };
   return { kind: "unsupported", format: "unknown" };
 }
 
@@ -53,6 +57,18 @@ export function blipBlob(ctx: SlideContext, part: string, blip: XmlElement): str
     return undefined;
   }
   const sniffed = sniffImage(bytes);
+  if (sniffed.kind === "tiff") {
+    const converted = tiffToPng(bytes);
+    if (converted === undefined) {
+      ctx.warn(`TIFF picture could not be decoded, skipped (${target ?? rid})`);
+      return undefined;
+    }
+    if (converted.pages > 1)
+      ctx.warn(
+        `TIFF picture has ${String(converted.pages)} pages, the first is used (${target ?? rid})`,
+      );
+    return storeBlob(ctx, converted.png, "image/png");
+  }
   if (sniffed.kind === "unsupported") {
     ctx.warn(`${sniffed.format} picture skipped (${target ?? rid})`);
     return undefined;

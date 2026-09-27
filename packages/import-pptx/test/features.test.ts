@@ -3,6 +3,8 @@
  * fills, outlines, geometry, groups, pictures and charts.
  */
 import { isFigmaPath, type Paint, type SceneNode, SceneSchema } from "@figbridge/scene";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
+import UTIF from "utif";
 import { describe, expect, it } from "vitest";
 import { importPptx } from "../src/index.js";
 import { buildPptx, type DeckSpec, shape } from "./build-pptx.js";
@@ -270,6 +272,35 @@ describe("pictures", () => {
       expect(stored?.mimeType).toBe("image/gif");
       expect(stored?.bytes).toEqual(gif);
     }
+  });
+
+  it("converts TIFF pictures to PNG", async () => {
+    // 2×1 TIFF: a red and a blue pixel.
+    const rgba = new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]);
+    const tiff = new Uint8Array(UTIF.encodeImage(rgba, 2, 1));
+    const { nodes, blobs, warnings } = await nodesOf(pic("rTif"), {
+      rels: `<Relationship Id="rTif" Target="../media/image1.tiff"/>`,
+      parts: { "ppt/media/image1.tiff": tiff },
+    });
+    expect(warnings).toEqual([]);
+    const node = nodes[0];
+    expect(node?.type).toBe("image");
+    if (node?.type !== "image") return;
+    const stored = blobs.get(node.image.blob);
+    expect(stored?.mimeType).toBe("image/png");
+    const image = await loadImage(Buffer.from(stored?.bytes ?? []));
+    const canvas = createCanvas(2, 1);
+    canvas.getContext("2d").drawImage(image, 0, 0);
+    expect([...canvas.getContext("2d").getImageData(0, 0, 2, 1).data]).toEqual([...rgba]);
+  });
+
+  it("skips a TIFF it cannot decode, with a warning", async () => {
+    const { nodes, warnings } = await nodesOf(pic("rTif"), {
+      rels: `<Relationship Id="rTif" Target="../media/image1.tiff"/>`,
+      parts: { "ppt/media/image1.tiff": new Uint8Array([0x49, 0x49, 42, 0, 0xff, 0xff, 0, 0]) },
+    });
+    expect(nodes).toHaveLength(0);
+    expect(warnings.join(" ")).toMatch(/TIFF picture could not be decoded/);
   });
 
   it("skips formats Figma cannot show, with a warning", async () => {

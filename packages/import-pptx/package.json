@@ -21,7 +21,8 @@
   "dependencies": {
     "@figbridge/scene": "workspace:*",
     "fast-xml-parser": "catalog:",
-    "fflate": "catalog:"
+    "fflate": "catalog:",
+    "utif": "catalog:"
   },
   "devDependencies": {
     "@napi-rs/canvas": "catalog:",
