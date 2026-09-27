@@ -1,7 +1,4 @@
 ---
-"@figbridge/scene": minor
-"@figbridge/import-pptx": minor
-"@figbridge/plugin": minor
 "figbridge": minor
 ---
 

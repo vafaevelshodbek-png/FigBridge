@@ -1,5 +1,4 @@
 ---
-"@figbridge/import-pptx": minor
 "figbridge": minor
 ---
 
