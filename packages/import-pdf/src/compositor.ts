@@ -7,7 +7,8 @@
  * primitives: text and vectors drawn over a photo stay separate, editable layers.
  */
 import { type Canvas, createCanvas, ImageData, Path2D, type SKRSContext2D } from "@napi-rs/canvas";
-import type { Matrix } from "./matrix.js";
+import { type Matrix, multiply } from "./matrix.js";
+import { type MeshIR, rasterizeMesh } from "./mesh.js";
 import type { Box, Segment } from "./path.js";
 import type {
   ClipPath,
@@ -42,6 +43,8 @@ export interface CompositeSources {
   image(source: ImagePrimitive["source"]): DecodedImage | undefined;
   shading(pattern: string): ShadingIR | undefined;
   masks: ReadonlyMap<number, SoftMask>;
+  /** Report content that could not be drawn (so a lost cover or photo is never silent). */
+  skipped(what: string): void;
 }
 
 export interface Layer {
@@ -139,7 +142,10 @@ function drawImage(
   sources: CompositeSources,
 ): void {
   const image = sources.image(primitive.source);
-  if (image === undefined) return;
+  if (image === undefined) {
+    sources.skipped("an image that could not be decoded");
+    return;
+  }
   const bitmap = toCanvas(image, primitive.stencil);
   // The image unit square has y up; device space has y down: flip within the unit square.
   const [a, b, c, d, e, f] = primitive.ctm;
@@ -157,7 +163,18 @@ function drawShading(
   sources: CompositeSources,
 ): void {
   const ir = sources.shading(primitive.pattern);
-  if (ir === undefined || ir[0] !== "RadialAxial") return;
+  if (ir === undefined) {
+    sources.skipped("a gradient that could not be read");
+    return;
+  }
+  if (ir[0] === "Mesh") {
+    drawMesh(ctx, ir as unknown as MeshIR, primitive, view);
+    return;
+  }
+  if (ir[0] !== "RadialAxial") {
+    sources.skipped(`a ${ir[0]} gradient (not supported yet)`);
+    return;
+  }
   const [, type, , stops, p0, p1, r0, r1] = ir;
   const [a, b, c, d, e, f] = primitive.ctm;
   ctx.setTransform(...view);
@@ -170,6 +187,16 @@ function drawShading(
   ctx.fillStyle = gradient;
   // The shading fills the whole clip region; a huge rectangle in shading space covers it.
   ctx.fillRect(-1e5, -1e5, 2e5, 2e5);
+}
+
+function drawMesh(ctx: SKRSContext2D, ir: MeshIR, primitive: ShadingPrimitive, view: Matrix): void {
+  const m = multiply(view, primitive.ctm);
+  const bitmap = rasterizeMesh(ir, Math.max(Math.hypot(m[0], m[1]), Math.hypot(m[2], m[3])));
+  if (bitmap === undefined) return;
+  ctx.setTransform(...view);
+  ctx.transform(...primitive.ctm);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap.canvas, bitmap.x, bitmap.y, bitmap.w, bitmap.h);
 }
 
 function renderMask(

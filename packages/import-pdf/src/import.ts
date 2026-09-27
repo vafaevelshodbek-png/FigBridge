@@ -20,7 +20,7 @@ import { dedupe, gradientRect, isInvisible, isPageRect } from "./classify.js";
 import { compositeLayer } from "./compositor.js";
 import { interpret } from "./interpret.js";
 import { toMatrix } from "./matrix.js";
-import { type Box, bounds } from "./path.js";
+import { asRoundedRect, type Box, bounds } from "./path.js";
 import { fontName, PDFJS_ASSETS, rasterSources } from "./pdfjs.js";
 import type { PathPrimitive, Primitive } from "./primitives.js";
 import { clusterZones, FIGMA_MAX_IMAGE_SIDE, rasterScale } from "./raster.js";
@@ -30,12 +30,17 @@ import {
   buildLines,
   buildParagraphs,
   dedupeGlyphs,
+  dropCovered,
+  type Occluder,
   paragraphToNode,
   repairLigatures,
 } from "./text.js";
 
 /** Slide width the grouping heuristics were tuned at; other widths scale them. */
 const REFERENCE_WIDTH = 1920;
+
+/** Fill opacity at which a shape hides what is under it. */
+const OPAQUE = 0.99;
 
 export interface ImportOptions {
   /** Output slide width in px; height follows the page aspect ratio. Default 1920. */
@@ -213,7 +218,16 @@ async function importPage(
   }
 
   // ── text (always on top: PDFs paint text last in practice) ────────────────
-  const textNodes = buildParagraphs(buildLines(dedupeGlyphs(repairLigatures(glyphs))), unit)
+  const occluders = primitives.flatMap((p): Occluder[] => {
+    if (p.kind !== "path" || p.fill === undefined || p.fill.alpha < OPAQUE || p.alpha < OPAQUE)
+      return [];
+    const rect = asRoundedRect(p.segments);
+    if (rect === undefined) return [];
+    const visible = visibleBox(rect.box, p.clips);
+    return visible === undefined ? [] : [{ op: p.op, ...visible }];
+  });
+  const shown = dropCovered(dedupeGlyphs(repairLigatures(glyphs)), occluders);
+  const textNodes = buildParagraphs(buildLines(shown), unit)
     .map((paragraph) => paragraphToNode(paragraph, nextId(), unit))
     .filter((node) => node !== undefined);
   if (glyphs.some((g) => !g.upright))

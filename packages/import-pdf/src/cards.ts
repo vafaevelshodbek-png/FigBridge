@@ -75,6 +75,20 @@ export function groupCards(
       parent.set(child.order, best.order);
   }
 
+  // Grouping must never change which of two overlapping layers is on top. The check above
+  // only looks at each child alone; this one checks the whole result and ungroups offenders
+  // (e.g. a panel the size of the card, painted between the card and its content).
+  const byOrder = new Map(placed.map((p) => [p.order, p]));
+  for (;;) {
+    const sequence = flatten(
+      nodes.map((_, order) => order).filter((o) => !parent.has(o)),
+      parent,
+    );
+    const offender = firstSwap(sequence, byOrder, parent);
+    if (offender === undefined) break;
+    parent.delete(offender);
+  }
+
   const build = (order: number): SceneNode => {
     const node = nodes[order];
     if (node === undefined) throw new Error(`node ${String(order)} missing`);
@@ -98,4 +112,41 @@ export function groupCards(
     .map((_, order) => order)
     .filter((order) => !parent.has(order))
     .map(build);
+}
+
+/** Paint order of the output: each root followed by its descendants, depth first. */
+function flatten(roots: readonly number[], parent: ReadonlyMap<number, number>): number[] {
+  const out: number[] = [];
+  const visit = (order: number) => {
+    out.push(order);
+    [...parent.entries()]
+      .filter(([, p]) => p === order)
+      .map(([c]) => c)
+      .sort((a, b) => a - b)
+      .forEach(visit);
+  };
+  roots.forEach(visit);
+  return out;
+}
+
+/**
+ * A grouped node that now paints below something it used to cover (or above something that
+ * used to cover it), or undefined when the output keeps every overlapping pair in order.
+ */
+function firstSwap(
+  sequence: readonly number[],
+  byOrder: ReadonlyMap<number, Placed>,
+  parent: ReadonlyMap<number, number>,
+): number | undefined {
+  for (let i = 0; i < sequence.length; i++) {
+    const a = byOrder.get(sequence[i] ?? -1);
+    if (a === undefined) continue;
+    for (let j = i + 1; j < sequence.length; j++) {
+      const b = byOrder.get(sequence[j] ?? -1);
+      if (b === undefined || a.order < b.order || !overlaps(a.box, b.box)) continue;
+      if (parent.has(a.order)) return a.order;
+      if (parent.has(b.order)) return b.order;
+    }
+  }
+  return undefined;
 }

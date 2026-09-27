@@ -154,6 +154,7 @@ export function interpret(
       const scale = scaleOf(trm);
       if (t.renderMode !== TEXT_RENDER_INVISIBLE && scale > 0) {
         glyphs.push({
+          op,
           text: glyphText(glyph.unicode, glyph.originalCharCode),
           x: trm[4],
           y: trm[5],

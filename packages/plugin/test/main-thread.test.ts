@@ -271,6 +271,19 @@ describe("read methods", () => {
     expect(result).toMatchObject({ mimeType: "image/png", width: 200, height: 100 });
   });
 
+  it("node.export loads image fills before a raster export, so photos are not blank", async () => {
+    serveBlobs({});
+    const frame = fake.createFrame();
+    fake.currentPage.appendChild(frame);
+    frame.resize(100, 50);
+    const rect = fake.createRectangle();
+    frame.appendChild(rect);
+    const image = fake.createImage(PNG);
+    rect.fills = [{ type: "IMAGE", imageHash: image.hash, scaleMode: "FILL" }];
+    ok(await call("node.export", { nodeId: frame.id, format: "png", scale: 1 }));
+    expect(fake.blankRasterExports).toBe(0);
+  });
+
   it("node.export falls back to SVG when Figma never finishes a raster export", async () => {
     serveBlobs({});
     const frame = fake.createFrame();

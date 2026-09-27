@@ -91,5 +91,9 @@ export async function rasterSources(
         ? getObject<DecodedImage>(page, source.objId)
         : (source.inline as DecodedImage | undefined),
     shading: (pattern) => getObject<ShadingIR>(page, pattern),
+    skipped: (what) => {
+      const message = `page ${String(page.pageNumber)}: ${what} was skipped`;
+      if (!warnings.includes(message)) warnings.push(message);
+    },
   };
 }

@@ -115,6 +115,9 @@ export const nodeExport: Handler<"node.export"> = async ({ nodeId, format, scale
   let bytes: Uint8Array | undefined;
   let mimeType: string = MIME[format];
   if (format !== "svg") {
+    // Figma draws image fills lazily: a raster export taken before an image has loaded
+    // leaves it blank (seen 27.09.2026 on imported photos). Load them first.
+    await loadImages(node);
     bytes = await settleWithin(
       node.exportAsync({
         format: format === "png" ? "PNG" : "JPG",
@@ -156,4 +159,26 @@ function settleWithin<T>(promise: Promise<T>, ms: number): Promise<T | undefined
       },
     );
   });
+}
+
+/** Load the bytes of every image fill in `node`'s subtree, so a raster export includes them. */
+async function loadImages(node: BaseNode): Promise<void> {
+  const hashes = new Set<string>();
+  const visit = (n: BaseNode) => {
+    if ("fills" in n && Array.isArray(n.fills)) {
+      for (const paint of n.fills as readonly Paint[])
+        if (paint.type === "IMAGE" && paint.imageHash !== null) hashes.add(paint.imageHash);
+    }
+    if ("children" in n) for (const child of n.children) visit(child);
+  };
+  visit(node);
+  await Promise.all(
+    [...hashes].map(async (hash) => {
+      try {
+        await figma.getImageByHash(hash)?.getBytesAsync();
+      } catch {
+        // A broken image stays blank in the export; nothing else to do.
+      }
+    }),
+  );
 }

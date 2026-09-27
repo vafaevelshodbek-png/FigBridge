@@ -200,6 +200,22 @@ export class FakeFigma {
     return { hash, getSizeAsync: () => Promise.resolve(size) };
   };
 
+  /** Images whose bytes the renderer has loaded; raster exports draw the others blank. */
+  readonly loadedImages = new Set<string>();
+  /** Raster exports taken while an image in the node was not loaded yet. */
+  blankRasterExports = 0;
+
+  getImageByHash = (hash: string) =>
+    this.images.has(hash)
+      ? {
+          hash,
+          getBytesAsync: () => {
+            this.loadedImages.add(hash);
+            return Promise.resolve(new Uint8Array());
+          },
+        }
+      : null;
+
   group = (children: readonly FakeNode[], parent: FakeNode) => {
     if (children.length === 0) fail("Grouping zero nodes");
     const group = new FakeNode(this, "GROUP");
@@ -435,6 +451,15 @@ export class FakeNode {
   }): Promise<Uint8Array> {
     if (!["PNG", "JPG", "SVG", "PDF"].includes(settings.format))
       fail(`export format ${settings.format}`);
+    if (settings.format === "PNG" || settings.format === "JPG") {
+      const unloaded = (n: FakeNode): boolean =>
+        (Array.isArray(n.fills) &&
+          (n.fills as { type: string; imageHash?: string }[]).some(
+            (f) => f.type === "IMAGE" && !this.figma.loadedImages.has(f.imageHash ?? ""),
+          )) ||
+        n.children.some(unloaded);
+      if (unloaded(this)) this.figma.blankRasterExports++;
+    }
     if (exportBehaviour.rasterHangs && (settings.format === "PNG" || settings.format === "JPG"))
       return new Promise<Uint8Array>(() => undefined);
     return Promise.resolve(new TextEncoder().encode(`${settings.format}:${this.id}`));

@@ -82,6 +82,8 @@ export interface Glyph {
   alpha: number;
   /** Text direction is horizontal (unrotated) — rotated text is kept but grouped separately. */
   upright: boolean;
+  /** Index of the painting operator (paint order); later paints cover earlier ones. */
+  op?: number;
 }
 
 export interface TextPrimitive extends PaintState {

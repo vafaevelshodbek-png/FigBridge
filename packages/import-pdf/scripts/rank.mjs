@@ -31,7 +31,7 @@ for (const [d, file] of files.entries()) {
   const doc = await getDocument({ data: data.slice(), verbosity: 0 }).promise;
   for (const [i, slide] of result.scene.slides.entries()) {
     const page = await doc.getPage(pages[i]);
-    const viewport = page.getViewport({ scale: WIDTH / page.view[2] });
+    const viewport = page.getViewport({ scale: WIDTH / (page.view[2] - page.view[0]) });
     const canvas = createCanvas(Math.round(viewport.width), Math.round(viewport.height));
     await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
     const ref = canvas.toBuffer("image/png");

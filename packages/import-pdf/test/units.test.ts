@@ -1,10 +1,19 @@
+import type { SceneNode } from "@figbridge/scene";
 import { describe, expect, it } from "vitest";
+import { groupCards } from "../src/cards.js";
 import { parseFontName } from "../src/fonts.js";
 import { glyphText } from "../src/interpret.js";
 import { multiply } from "../src/matrix.js";
+import { type MeshIR, rasterizeMesh } from "../src/mesh.js";
 import { asRoundedRect, decodePath } from "../src/path.js";
 import type { Glyph } from "../src/primitives.js";
-import { buildLines, buildParagraphs, repairLigatures } from "../src/text.js";
+import {
+  buildLines,
+  buildParagraphs,
+  dedupeGlyphs,
+  dropCovered,
+  repairLigatures,
+} from "../src/text.js";
 
 const I = [1, 0, 0, 1, 0, 0] as const;
 
@@ -143,5 +152,91 @@ describe("glyph text", () => {
     expect(glyphText("\uFFFD", 0x0416)).toBe("\uFFFD");
     expect(glyphText("a", 46)).toBe("a");
     expect(glyphText(undefined, undefined)).toBe("");
+  });
+});
+
+describe("card grouping", () => {
+  const rect = (id: string, x: number, y: number, w: number, h: number, color: string) => ({
+    id,
+    name: id,
+    type: "rect" as const,
+    x,
+    y,
+    w,
+    h,
+    rotation: 0,
+    flipX: false,
+    flipY: false,
+    opacity: 1,
+    visible: true,
+    fills: [{ type: "solid" as const, color, opacity: 1 }],
+    strokes: [],
+    radii: [0, 0, 0, 0] as [number, number, number, number],
+  });
+  const ids = (nodes: readonly SceneNode[]): string[] =>
+    nodes.flatMap((n) => (n.type === "group" ? ids(n.children) : [n.id]));
+
+  it("never lets a same-size panel painted over the card cover the card's content", () => {
+    // Visa Investor Day p.17: light card, blue panel of the same size, white inset, icon.
+    const nodes = [
+      rect("card", 100, 100, 300, 500, "#C2EDFE"),
+      rect("panel", 100, 100, 300, 500, "#1434CB"),
+      rect("inset", 130, 130, 240, 300, "#FFFFFF"),
+      rect("icon", 200, 200, 60, 60, "#1434CB"),
+    ];
+    let n = 0;
+    const out = groupCards(nodes, 1920 * 1080, () => `g${String(++n)}`);
+    expect(ids(out)).toEqual(["card", "panel", "inset", "icon"]);
+  });
+
+  it("still groups content inside a card", () => {
+    const nodes = [
+      rect("card", 100, 100, 300, 500, "#C2EDFE"),
+      rect("dot", 150, 150, 10, 10, "#000000"),
+    ];
+    const out = groupCards(nodes, 1920 * 1080, () => "g");
+    expect(out).toHaveLength(1);
+    expect(out[0]?.type).toBe("group");
+  });
+});
+
+describe("duplicate and hidden glyphs", () => {
+  it("keeps the copy painted last and never merges a double letter", () => {
+    const dark = { ...glyph("A", 100, 200), color: "#000000", op: 1 };
+    const light = { ...glyph("A", 100.4, 200), color: "#FFFFFF", op: 9 };
+    const l1 = { ...glyph("l", 200, 200, 20, 4.4), op: 3 };
+    const l2 = { ...glyph("l", 204.4, 200, 20, 4.4), op: 3 };
+    expect(dedupeGlyphs([dark, light, l1, l2])).toEqual([light, l1, l2]);
+  });
+
+  it("drops text a later opaque rectangle covers", () => {
+    const hidden = { ...glyph("x", 110, 150), op: 1 };
+    const onTop = { ...glyph("y", 110, 150), op: 5 };
+    const panel = { op: 3, x0: 100, y0: 100, x1: 200, y1: 200 };
+    expect(dropCovered([hidden, onTop], [panel])).toEqual([onTop]);
+  });
+});
+
+describe("mesh shading", () => {
+  it("fills triangles with colours interpolated between their vertices", () => {
+    // Two triangles covering a 10 × 10 square: red on the left edge, blue on the right.
+    const coords = [0, 0, 10, 0, 0, 10, 10, 0, 10, 10, 0, 10];
+    const red = [255, 0, 0, 255];
+    const blue = [0, 0, 255, 255];
+    const colors = [...red, ...blue, ...red, ...blue, ...blue, ...red];
+    const ir: MeshIR = ["Mesh", 4, coords, colors, 6, [0, 0, 10, 10], null, null];
+    const bitmap = rasterizeMesh(ir, 1);
+    expect(bitmap).toBeDefined();
+    const pixels = bitmap?.canvas.getContext("2d").getImageData(0, 0, 10, 10).data;
+    const at = (x: number, y: number) => [
+      ...(pixels?.slice((y * 10 + x) * 4, (y * 10 + x) * 4 + 4) ?? []),
+    ];
+    expect(at(0, 5)[0]).toBeGreaterThan(200); // left edge red
+    expect(at(9, 5)[2]).toBeGreaterThan(200); // right edge blue
+    expect(at(5, 5)[3]).toBe(255); // no gaps between the triangles
+  });
+
+  it("returns nothing for an empty mesh", () => {
+    expect(rasterizeMesh(["Mesh", 4, [], [], 0, null, null, null], 1)).toBeUndefined();
   });
 });

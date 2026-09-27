@@ -77,14 +77,64 @@ function isUnmapped(text: string): boolean {
   return text.length > 0 && Array.from(text).every((ch) => ch.charCodeAt(0) < 0x20);
 }
 
-/** Drop glyphs painted twice at the same place (decks often draw text twice for "boldness"). */
+/** Two copies of a glyph closer than this × size count as the same glyph painted twice. */
+const SAME_PLACE = 0.25;
+
+/**
+ * Drop glyphs painted twice at (almost) the same place — decks draw text twice for
+ * "boldness", and builds leave a dark copy under a later white one. The copy painted last is
+ * the one that shows, so it is kept.
+ */
 export function dedupeGlyphs(glyphs: readonly Glyph[]): Glyph[] {
-  const seen = new Set<string>();
+  const kept = new Map<string, Glyph[]>();
+  const cell = (g: Glyph) => [Math.floor(g.x / g.size), Math.floor(g.y / g.size)] as const;
+  const dropped = new Set<Glyph>();
+  const byPaint = [...glyphs].sort((a, b) => (b.op ?? 0) - (a.op ?? 0));
+  for (const g of byPaint) {
+    const [cx, cy] = cell(g);
+    let duplicate = false;
+    for (let dx = -1; dx <= 1 && !duplicate; dx++)
+      for (let dy = -1; dy <= 1 && !duplicate; dy++)
+        duplicate = (kept.get(`${String(cx + dx)},${String(cy + dy)}`) ?? []).some(
+          (k) =>
+            k.text === g.text &&
+            // Narrow glyphs ("ll") sit closer than SAME_PLACE × size: also stay under half
+            // an advance, or the second letter of a pair would be taken for a copy.
+            Math.abs(k.x - g.x) < Math.min(SAME_PLACE * g.size, g.advance / 2) &&
+            Math.abs(k.y - g.y) < SAME_PLACE * g.size,
+        );
+    if (duplicate) {
+      dropped.add(g);
+      continue;
+    }
+    const key = `${String(cx)},${String(cy)}`;
+    kept.set(key, [...(kept.get(key) ?? []), g]);
+  }
+  return glyphs.filter((g) => !dropped.has(g));
+}
+
+/** An opaque rectangle painted over part of the page (a panel, a card, a photo frame). */
+export interface Occluder {
+  op: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * Drop glyphs that a later opaque rectangle covers: they are invisible in the PDF, and text
+ * is placed above every shape in the output, where they would show.
+ */
+export function dropCovered(glyphs: readonly Glyph[], occluders: readonly Occluder[]): Glyph[] {
   return glyphs.filter((g) => {
-    const key = `${g.text}|${String(Math.round(g.x * 2))}|${String(Math.round(g.y * 2))}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+    const x0 = g.x;
+    const x1 = g.x + g.advance;
+    const y0 = g.y - g.size * 0.8;
+    const y1 = g.y;
+    return !occluders.some(
+      (o) => o.op > (g.op ?? 0) && o.x0 <= x0 && o.x1 >= x1 && o.y0 <= y0 && o.y1 >= y1,
+    );
   });
 }
 
