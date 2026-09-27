@@ -10,13 +10,17 @@ figbridge connects an AI agent (Claude Code, Claude Desktop, Cursor, VS Code, an
 - photos become image layers at source resolution, cropped and rounded like the original;
 - text becomes editable paragraphs with its fonts, sizes and colours;
 - PowerPoint tables stay tables of cells, and charts (bar, column, line, area, scatter, pie, doughnut and combinations) are rebuilt as shapes with their axes;
-- everything inside a card is grouped with the card.
+- everything inside a card is grouped with the card;
+- in a Figma Slides file every page becomes a real slide, with the deck's speaker notes kept on it;
+- fonts that had to be replaced are listed in the plugin window, and text that no longer fits its box is reported.
 
 The importers are tested against real decks with golden images on every change; see [Limitations](#limitations) for what is not covered yet.
 
 > Status: pre-release, not yet on npm. The core works end to end in Figma Desktop; until the first release, install from source (see [Development](#development)) and use `node packages/figbridge/dist/cli.mjs` wherever this page says `npx figbridge`.
 
 ## Quick start
+
+You need Node.js 22 or newer and Figma Desktop (browser Figma cannot run development plugins). Setup takes about five minutes.
 
 1. **Install the plugin** — it ships inside the package: `npx figbridge plugin` prints the path of its `manifest.json`. In Figma Desktop: *Plugins → Development → Import plugin from manifest…* and pick that file.
 2. **Add the MCP server** to your client:
@@ -32,7 +36,9 @@ The importers are tested against real decks with golden images on every change; 
    ```
 
 3. **Pair once** — run `npx figbridge pair`, open the figbridge plugin in your Figma file and paste the token.
-4. Ask your agent: *"Import ~/decks/q2.pdf pages 1–5 into Figma below the existing frames."*
+4. Ask your agent: *"Import ~/decks/q2.pdf pages 1–5 into Figma."* Slides are laid out in a grid below whatever is already on the page; in a Figma Slides file they are added as slides.
+
+If the plugin says it is not connected, run `npx figbridge doctor`: it checks Node, the token, the plugin and the hub and prints the one thing to fix.
 
 ## Tools
 
