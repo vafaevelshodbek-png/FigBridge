@@ -7,8 +7,9 @@
 import { METHODS, type MethodName, type MethodParams, type Response } from "@figbridge/protocol";
 import type { Slide } from "@figbridge/scene";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RASTER_EXPORT_TIMEOUT_MS } from "../src/main/handlers/read.js";
 import type { MainToUi, UiToMain } from "../src/shared/messages.js";
-import { type FakeFigma, type FakeNode, installFakeFigma } from "./fake-figma.js";
+import { exportBehaviour, type FakeFigma, type FakeNode, installFakeFigma } from "./fake-figma.js";
 
 let fake: FakeFigma;
 let nextId = 0;
@@ -268,6 +269,24 @@ describe("read methods", () => {
     frame.resize(100, 50);
     const result = ok(await call("node.export", { nodeId: frame.id, format: "png", scale: 2 }));
     expect(result).toMatchObject({ mimeType: "image/png", width: 200, height: 100 });
+  });
+
+  it("node.export falls back to SVG when Figma never finishes a raster export", async () => {
+    serveBlobs({});
+    const frame = fake.createFrame();
+    fake.currentPage.appendChild(frame);
+    frame.resize(100, 50);
+    exportBehaviour.rasterHangs = true;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const pending = call("node.export", { nodeId: frame.id, format: "png", scale: 2 });
+      await vi.advanceTimersByTimeAsync(RASTER_EXPORT_TIMEOUT_MS);
+      const result = ok(await pending);
+      expect(result).toMatchObject({ mimeType: "image/svg+xml", width: 200, height: 100 });
+    } finally {
+      vi.useRealTimers();
+      exportBehaviour.rasterHangs = false;
+    }
   });
 });
 

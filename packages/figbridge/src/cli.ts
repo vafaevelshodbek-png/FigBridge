@@ -24,6 +24,7 @@ import { RemoteHubClient } from "./client.js";
 import { compareNode } from "./compare-node.js";
 import { hubPort, loadOrCreateToken, pairingCode, stateDir } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
+import { exportNode } from "./export-node.js";
 import { importDeck } from "./import-deck.js";
 import { serveMcp } from "./mcp/server.js";
 import { startRuntime } from "./runtime.js";
@@ -207,8 +208,8 @@ program
         format: options.format,
         scale: Number(options.scale),
       });
-      const exported = await client.call("node.export", params, { session: options.session });
-      const { bytes } = await client.getBlob(exported.blob);
+      const exported = await exportNode(client, params, { session: options.session });
+      const { bytes } = exported;
       const path = resolve(options.out);
       await writeFile(path, bytes);
       out(JSON.stringify({ file: path, width: exported.width, height: exported.height }));

@@ -15,6 +15,7 @@ import { SceneNodeSchema } from "@figbridge/scene";
 import { z } from "zod";
 import type { HubClient } from "../client.js";
 import { compareNode } from "../compare-node.js";
+import { exportNode } from "../export-node.js";
 import { importDeck } from "../import-deck.js";
 
 export interface ToolAnnotations {
@@ -194,12 +195,11 @@ export const TOOLS: readonly ToolDefinition[] = [
     }),
     annotations: READ,
     run: async ({ session, saveTo, ...params }, { client, signal }) => {
-      const exported = await client.call("node.export", params, {
+      const exported = await exportNode(client, METHODS["node.export"].params.parse(params), {
         session,
         signal,
-        timeoutMs: METHODS["node.export"].timeoutMs,
       });
-      const { bytes, mimeType } = await client.getBlob(exported.blob);
+      const { bytes, mimeType } = exported;
       const meta = { width: exported.width, height: exported.height, mimeType };
       if (saveTo !== undefined) {
         if (!isAbsolute(saveTo)) throw new Error("saveTo must be an absolute path.");

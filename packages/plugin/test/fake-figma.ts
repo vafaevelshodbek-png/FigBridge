@@ -79,6 +79,9 @@ function imageSize(bytes: Uint8Array): { width: number; height: number } {
   fail("Image type is unsupported");
 }
 
+/** Test switch: raster exports never settle, as seen in live Figma on 27.09.2026. */
+export const exportBehaviour = { rasterHangs: false };
+
 export class FakeFigma {
   readonly mixed = Symbol("mixed");
   editorType: "figma" | "slides" = "figma";
@@ -396,6 +399,8 @@ export class FakeNode {
   }): Promise<Uint8Array> {
     if (!["PNG", "JPG", "SVG", "PDF"].includes(settings.format))
       fail(`export format ${settings.format}`);
+    if (exportBehaviour.rasterHangs && (settings.format === "PNG" || settings.format === "JPG"))
+      return new Promise<Uint8Array>(() => undefined);
     return Promise.resolve(new TextEncoder().encode(`${settings.format}:${this.id}`));
   }
 

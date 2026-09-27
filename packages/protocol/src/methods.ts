@@ -131,7 +131,8 @@ export const METHODS = {
   },
 
   "node.export": {
-    summary: "Export a node as PNG, JPG or SVG. Binary data returns as a blob.",
+    summary:
+      "Export a node as PNG, JPG or SVG. Binary data returns as a blob. A raster export Figma does not finish returns SVG instead (mimeType says which); width and height are the requested raster size.",
     params: z.object({
       nodeId: NodeIdSchema,
       format: z.enum(["png", "jpg", "svg"]).default("png"),

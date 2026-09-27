@@ -4,9 +4,10 @@
  * `figbridge compare`.
  */
 import { readFile } from "node:fs/promises";
-import { BridgeError, METHODS } from "@figbridge/protocol";
+import { BridgeError } from "@figbridge/protocol";
 import { compareImages, DEFAULT_TOLERANCE, imageSize } from "@figbridge/scene/compare";
 import type { HubClient } from "./client.js";
+import { exportNode } from "./export-node.js";
 
 export interface CompareNodeOptions {
   nodeId: string;
@@ -62,12 +63,11 @@ export async function compareNode(
   }
   // Export at the image's width, so a 2× screenshot compares at 2×.
   const scale = Math.min(4, Math.max(0.05, size.width / box.w));
-  const exported = await client.call(
-    "node.export",
+  const { bytes } = await exportNode(
+    client,
     { nodeId: options.nodeId, format: "png", scale },
-    { ...call, timeoutMs: METHODS["node.export"].timeoutMs },
+    call,
   );
-  const { bytes } = await client.getBlob(exported.blob);
   const tolerance = options.tolerance ?? DEFAULT_TOLERANCE;
   // The image is the reference frame of the comparison: the export is scaled to it.
   const result = await compareImages(image, bytes, { tolerance });
