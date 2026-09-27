@@ -9,6 +9,7 @@ import { importPptx } from "@figbridge/import-pptx";
 import { APPROVAL_TIMEOUT_MS, BridgeError, type MethodResult } from "@figbridge/protocol";
 import { ulid } from "ulid";
 import type { HubClient } from "./client.js";
+import { convertMetafiles, findSoffice } from "./libreoffice.js";
 
 export interface ImportDeckOptions {
   path: string;
@@ -50,10 +51,18 @@ export async function importDeck(
   }
   let converted: Awaited<ReturnType<typeof importPdf>>;
   try {
-    const convert = extension === ".pptx" ? importPptx : importPdf;
-    converted = await convert(data, basename(options.path), {
-      ...(options.pages === undefined ? {} : { pages: options.pages }),
-    });
+    const pages = options.pages === undefined ? {} : { pages: options.pages };
+    if (extension === ".pptx") {
+      const soffice = findSoffice();
+      converted = await importPptx(data, basename(options.path), {
+        ...pages,
+        ...(soffice === undefined
+          ? {}
+          : { convertMetafiles: (pictures) => convertMetafiles(soffice, pictures) }),
+      });
+    } else {
+      converted = await importPdf(data, basename(options.path), pages);
+    }
   } catch (error) {
     throw new BridgeError(
       "DOCUMENT_INVALID",

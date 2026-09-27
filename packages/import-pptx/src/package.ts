@@ -37,6 +37,16 @@ export class Package {
     }
   }
 
+  /** Names of all parts in the package. */
+  parts(): string[] {
+    return Object.keys(this.files);
+  }
+
+  /** Swap a part's bytes (e.g. a converted picture) before slides are read. */
+  replace(part: string, bytes: Uint8Array): void {
+    this.files[part] = bytes;
+  }
+
   has(part: string): boolean {
     return part in this.files;
   }

@@ -70,7 +70,11 @@ export function blipBlob(ctx: SlideContext, part: string, blip: XmlElement): str
     return storeBlob(ctx, converted.png, "image/png");
   }
   if (sniffed.kind === "unsupported") {
-    ctx.warn(`${sniffed.format} picture skipped (${target ?? rid})`);
+    const hint =
+      sniffed.format === "EMF" || sniffed.format === "WMF"
+        ? "; install LibreOffice to convert EMF and WMF pictures"
+        : "";
+    ctx.warn(`${sniffed.format} picture skipped (${target ?? rid})${hint}`);
     return undefined;
   }
   return storeBlob(ctx, bytes, sniffed.mimeType);

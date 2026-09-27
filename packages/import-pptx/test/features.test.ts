@@ -303,13 +303,41 @@ describe("pictures", () => {
     expect(warnings.join(" ")).toMatch(/TIFF picture could not be decoded/);
   });
 
-  it("skips formats Figma cannot show, with a warning", async () => {
-    const { nodes, warnings } = await nodesOf(pic("rEmf"), {
-      rels: `<Relationship Id="rEmf" Target="../media/image1.emf"/>`,
-      parts: { "ppt/media/image1.emf": new Uint8Array([1, 0, 0, 0, 0x6c, 0, 0, 0]) },
-    });
+  // An EMF header is enough for sniffing: record type 1 and the " EMF" signature at 40.
+  const emf = new Uint8Array(88);
+  emf[0] = 1;
+  emf.set([0x20, 0x45, 0x4d, 0x46], 40);
+  const emfDeck = {
+    rels: `<Relationship Id="rEmf" Target="../media/image1.emf"/>`,
+    parts: { "ppt/media/image1.emf": emf },
+  };
+
+  it("skips EMF without a converter, with a hint to install LibreOffice", async () => {
+    const { nodes, warnings } = await nodesOf(pic("rEmf"), emfDeck);
     expect(nodes).toHaveLength(0);
-    expect(warnings.join(" ")).toMatch(/emf|unsupported|image/i);
+    expect(warnings.join(" ")).toMatch(/EMF picture skipped .*install LibreOffice/);
+  });
+
+  it("hands every metafile to the converter once and uses the PNG it returns", async () => {
+    const calls: string[][] = [];
+    const result = await importPptx(
+      buildPptx({
+        slides: [{ shapes: pic("rEmf"), rels: emfDeck.rels }],
+        parts: { ...emfDeck.parts, "ppt/media/unused.emf": emf },
+      }),
+      "t.pptx",
+      {
+        convertMetafiles: (pictures) => {
+          calls.push(pictures.map((p) => `${p.format} ${p.part}`));
+          return Promise.resolve(new Map([["ppt/media/image1.emf", PNG]]));
+        },
+      },
+    );
+    expect(calls).toEqual([["EMF ppt/media/image1.emf"]]);
+    const node = result.scene.slides[0]?.children[0];
+    expect(node?.type).toBe("image");
+    if (node?.type === "image") expect(result.blobs.get(node.image.blob)?.bytes).toEqual(PNG);
+    expect(result.warnings).toEqual([]);
   });
 });
 

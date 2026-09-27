@@ -73,7 +73,7 @@ The hub listens on `127.0.0.1` only, rejects browser origins and DNS-rebinding h
 - Fonts that are not installed are replaced by a metric-compatible twin when one exists (Calibri → Carlito, Arial → Arimo, Times New Roman → Tinos…), else by a face of the same kind or Inter with the same weight; brand fonts can then run slightly longer.
 - Rotated text in PDFs is skipped; vectors drawn on top of a photo inside the same image stay part of the photo.
 - Animated GIFs keep their animation (it plays in Figma's presentation view) unless they are larger than 4096 px on a side, which Figma requires to be downscaled to a still image. Videos import as their poster frame.
-- Superscript and subscript text is set smaller but stays on the baseline (plugins cannot shift it). TIFF pictures are converted to PNG (first page); EMF and WMF pictures are skipped with a warning.
+- Superscript and subscript text is set smaller but stays on the baseline (plugins cannot shift it). TIFF pictures are converted to PNG (first page). EMF and WMF pictures are converted through LibreOffice when it is installed, otherwise skipped with a warning.
 - Figma Desktop is required (browser Figma cannot load development plugins).
 
 ## Development

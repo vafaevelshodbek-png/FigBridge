@@ -9,6 +9,7 @@ import type { Paint, Scene, Slide } from "@figbridge/scene";
 import { resolveColor } from "./color.js";
 import { type BlobStore, type Part, readTheme, type SlideContext } from "./context.js";
 import { fillElement, paintsOf, solid, themeFill } from "./fill.js";
+import { sniffImage } from "./images.js";
 import { Package } from "./package.js";
 import { walkTree } from "./shapes.js";
 import { attr, child, childrenOf, findAll, num, path, type XmlElement } from "./xml.js";
@@ -19,6 +20,19 @@ export interface ImportOptions {
   /** 1-based slide numbers to import; default all. */
   pages?: readonly number[];
   onPage?: (done: number, total: number) => void;
+  /**
+   * Convert Windows metafiles (EMF, WMF), which Figma cannot show, to PNG. Called once with
+   * every metafile in the package; returns PNG bytes by part name. Pictures it leaves out are
+   * skipped with a warning.
+   */
+  convertMetafiles?: (pictures: Metafile[]) => Promise<Map<string, Uint8Array>>;
+}
+
+/** A Windows metafile picture in the package. */
+export interface Metafile {
+  part: string;
+  format: "EMF" | "WMF";
+  bytes: Uint8Array;
 }
 
 export interface ImportResult {
@@ -49,11 +63,59 @@ export function importPptx(
   name: string,
   options: ImportOptions = {},
 ): Promise<ImportResult> {
-  return Promise.resolve().then(() => convert(data, name, options));
+  return Promise.resolve().then(async () => {
+    const pkg = new Package(data);
+    if (options.convertMetafiles !== undefined) {
+      const metafiles = metafilesOf(pkg, options.pages);
+      if (metafiles.length > 0) {
+        const converted = await options.convertMetafiles(metafiles);
+        for (const [part, png] of converted) pkg.replace(part, png);
+      }
+    }
+    return convert(pkg, name, options);
+  });
 }
 
-function convert(data: Uint8Array, name: string, options: ImportOptions): ImportResult {
-  const pkg = new Package(data);
+/**
+ * Metafiles the imported slides can show: parts reachable from those slides through their
+ * relationships (slide → layout → master, charts, diagrams). A master's other layouts and
+ * speaker notes are not followed, so unused pictures are not converted.
+ */
+function metafilesOf(pkg: Package, pages: readonly number[] | undefined): Metafile[] {
+  const slides = slidePartsOf(pkg);
+  const start = pages === undefined ? slides : pages.map((n) => slides[n - 1] ?? "");
+  const seen = new Set<string>();
+  const queue = start.filter((p) => p !== "");
+  for (let part = queue.pop(); part !== undefined; part = queue.pop()) {
+    if (seen.has(part)) continue;
+    seen.add(part);
+    const fromMaster = part.includes("/slideMasters/");
+    for (const target of pkg.rels(part).internal.values()) {
+      if (target.includes("/notesSlides/") || (fromMaster && target.includes("/slideLayouts/")))
+        continue;
+      queue.push(target);
+    }
+  }
+  return [...seen].flatMap((part) => {
+    const bytes = pkg.bytes(part);
+    if (bytes === undefined) return [];
+    const sniffed = sniffImage(bytes);
+    return sniffed.kind === "unsupported" && (sniffed.format === "EMF" || sniffed.format === "WMF")
+      ? [{ part, format: sniffed.format, bytes }]
+      : [];
+  });
+}
+
+/** Slide part names in presentation order. */
+function slidePartsOf(pkg: Package): string[] {
+  const presentationPart = "ppt/presentation.xml";
+  const rels = pkg.rels(presentationPart);
+  return childrenOf(child(pkg.xml(presentationPart), "sldIdLst"), "sldId")
+    .map((s) => rels.internal.get(attr(s, "r:id") ?? ""))
+    .filter((p): p is string => p !== undefined);
+}
+
+function convert(pkg: Package, name: string, options: ImportOptions): ImportResult {
   const presentationPart = "ppt/presentation.xml";
   const presentation = pkg.xml(presentationPart);
   if (presentation === undefined)
@@ -64,10 +126,7 @@ function convert(data: Uint8Array, name: string, options: ImportOptions): Import
   const width = options.width ?? 1920;
   if (cx <= 0 || cy <= 0) throw new RangeError("Invalid slide size.");
   const scale = width / cx;
-  const rels = pkg.rels(presentationPart);
-  const slideParts = childrenOf(child(presentation, "sldIdLst"), "sldId")
-    .map((s) => rels.internal.get(attr(s, "r:id") ?? ""))
-    .filter((p): p is string => p !== undefined);
+  const slideParts = slidePartsOf(pkg);
 
   const numbers = options.pages ?? slideParts.map((_, i) => i + 1);
   const blobs: BlobStore = new Map();
