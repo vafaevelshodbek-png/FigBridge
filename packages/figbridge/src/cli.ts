@@ -19,7 +19,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
-import { Command, Option } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import { RemoteHubClient } from "./client.js";
 import { compareNode } from "./compare-node.js";
 import { hubPort, loadOrCreateToken, pairingCode, stateDir } from "./config.js";
@@ -59,6 +59,24 @@ function untilShutdown(options: { watchStdin: boolean }): Promise<void> {
         done();
       });
     }
+  });
+}
+
+/** Parse a numeric option, refusing anything that is not a finite number. */
+function finite(value: string): number {
+  const n = Number(value);
+  if (value.trim() === "" || !Number.isFinite(n))
+    throw new InvalidArgumentError(`"${value}" is not a number.`);
+  return n;
+}
+
+/** Parse "1,3,5" into page numbers, refusing anything else. */
+function pageList(value: string): number[] {
+  return value.split(",").map((part) => {
+    const n = finite(part);
+    if (!Number.isInteger(n) || n < 1)
+      throw new InvalidArgumentError(`"${part}" is not a page number.`);
+    return n;
   });
 }
 
@@ -130,19 +148,19 @@ program
   .description("Pixel-compare a node with an image (e.g. a screenshot of its implementation)")
   .argument("<node>", "node id, e.g. 12:34 (or 12-34 as in Figma URLs)")
   .argument("<image>", "PNG or JPEG file")
-  .option("-t, --tolerance <n>", "per-channel tolerance 0–255 (default 40)")
+  .option("-t, --tolerance <n>", "per-channel tolerance 0–255 (default 40)", finite)
   .option("-o, --out <file>", "write the diff map (red = differs) to this PNG")
   .option("-s, --session <id>", "target session when several files are connected")
   .action(
     async (
       node: string,
       image: string,
-      options: { tolerance?: string; out?: string; session?: string },
+      options: { tolerance?: number; out?: string; session?: string },
     ) => {
       const { diff, ...result } = await compareNode(remote(), {
         nodeId: node.replace("-", ":"),
         imagePath: resolve(image),
-        tolerance: options.tolerance === undefined ? undefined : Number(options.tolerance),
+        tolerance: options.tolerance,
         session: options.session,
       });
       if (options.out !== undefined) await writeFile(resolve(options.out), diff);
@@ -195,18 +213,18 @@ program
   .argument("<node>", "node id, e.g. 12:34 (or 12-34 as in Figma URLs)")
   .requiredOption("-o, --out <file>", "output file")
   .option("-f, --format <format>", "png | jpg | svg", "png")
-  .option("--scale <n>", "scale factor", "1")
+  .option("--scale <n>", "scale factor", finite, 1)
   .option("-s, --session <id>", "target session")
   .action(
     async (
       node: string,
-      options: { out: string; format: string; scale: string; session?: string },
+      options: { out: string; format: string; scale: number; session?: string },
     ) => {
       const client = remote();
       const params = METHODS["node.export"].params.parse({
         nodeId: node.replaceAll("-", ":"),
         format: options.format,
-        scale: Number(options.scale),
+        scale: options.scale,
       });
       const exported = await exportNode(client, params, { session: options.session });
       const { bytes } = exported;
@@ -220,17 +238,20 @@ program
   .command("import")
   .description("Import a PDF or PPTX into the connected Figma file as editable slides")
   .argument("<file>", "path to a .pdf or .pptx file")
-  .option("-p, --pages <list>", "comma-separated 1-based pages, e.g. 1,3,5")
-  .option("--x <n>", "grid origin x (default: below existing content)")
-  .option("--y <n>", "grid origin y (default: below existing content)")
+  .option("-p, --pages <list>", "comma-separated 1-based pages, e.g. 1,3,5", pageList)
+  .option("--x <n>", "grid origin x (default: below existing content)", finite)
+  .option("--y <n>", "grid origin y (default: below existing content)", finite)
   .option("-s, --session <id>", "target session")
   .action(
-    async (file: string, options: { pages?: string; x?: string; y?: string; session?: string }) => {
+    async (
+      file: string,
+      options: { pages?: number[]; x?: number; y?: number; session?: string },
+    ) => {
       const result = await importDeck(remote(), {
         path: resolve(file),
-        pages: options.pages?.split(",").map(Number),
-        x: options.x === undefined ? undefined : Number(options.x),
-        y: options.y === undefined ? undefined : Number(options.y),
+        pages: options.pages,
+        x: options.x,
+        y: options.y,
         session: options.session,
         onProgress: (done, total) => {
           process.stderr.write(`slide ${String(done)}/${String(total)}
