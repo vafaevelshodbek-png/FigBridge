@@ -133,6 +133,16 @@ export class FakeFigma {
     return out;
   }
 
+  readonly textStyles: FakeTextStyle[] = [];
+
+  createTextStyle = () => {
+    const style = new FakeTextStyle(this, `S:${String(this.#nextId++)}`);
+    this.textStyles.push(style);
+    return style;
+  };
+
+  getLocalTextStylesAsync = () => Promise.resolve([...this.textStyles]);
+
   createFrame = () => new FakeNode(this, "FRAME");
   /** Figma Slides only: a 1920 × 1080 slide appended to the presentation. */
   createSlide = () => {
@@ -589,6 +599,18 @@ export class FakeNode {
     }
     this.figma.requireFont(this.fontName, what);
   }
+  /** Text style ids linked with setRangeTextStyleIdAsync, by range. */
+  readonly styleRanges: { start: number; end: number; id: string }[] = [];
+
+  setRangeTextStyleIdAsync(start: number, end: number, id: string): Promise<void> {
+    this.#range(start, end, "setRangeTextStyleIdAsync");
+    const style = this.figma.textStyles.find((s) => s.id === id);
+    if (style === undefined) fail(`setRangeTextStyleIdAsync: no style ${id}`);
+    this.figma.requireFont(style.fontName, "setRangeTextStyleIdAsync");
+    this.styleRanges.push({ start, end, id });
+    return Promise.resolve();
+  }
+
   setRangeFontName(start: number, end: number, font: { family: string; style: string }): void {
     this.#range(start, end, "setRangeFontName");
     this.figma.requireFont(font, "setRangeFontName");
@@ -703,6 +725,30 @@ export class FakeNode {
 }
 
 /** Install a fresh fake as the global `figma` and return it. */
+/** A local text style; its font must be loaded before it is set, as in Figma. */
+export class FakeTextStyle {
+  name = "";
+  #fontName = { family: "Inter", style: "Regular" };
+  fontSize = 12;
+  letterSpacing: { unit: string; value: number } = { unit: "PERCENT", value: 0 };
+  lineHeight: { unit: string; value?: number } = { unit: "AUTO" };
+  textCase = "ORIGINAL";
+
+  constructor(
+    private readonly figma: FakeFigma,
+    readonly id: string,
+  ) {}
+
+  get fontName(): { family: string; style: string } {
+    return this.#fontName;
+  }
+
+  set fontName(font: { family: string; style: string }) {
+    this.figma.requireFont(font, "TextStyle.fontName");
+    this.#fontName = font;
+  }
+}
+
 export function installFakeFigma(): FakeFigma {
   const fake = new FakeFigma();
   (globalThis as { figma?: unknown }).figma = fake;

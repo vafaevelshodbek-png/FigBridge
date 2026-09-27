@@ -1,9 +1,16 @@
 /**
  * Scene text nodes → Figma TextNode with styled runs and paragraphs.
  */
-import type { TextNode as SceneText } from "@figbridge/scene";
+import type { TextNode as SceneText, TextStyle as SceneTextStyle } from "@figbridge/scene";
 import type { FontLoader } from "./fonts.js";
 import { hexToRgb } from "./geometry.js";
+import { figmaLineHeight, type TextStyles } from "./text-styles.js";
+
+/** Text styles of the slide being rendered, and the file's local styles. */
+export interface StyleLinks {
+  styles: TextStyles;
+  defs: ReadonlyMap<string, SceneTextStyle>;
+}
 
 const ALIGN = { left: "LEFT", center: "CENTER", right: "RIGHT", justified: "JUSTIFIED" } as const;
 const VALIGN = { top: "TOP", center: "CENTER", bottom: "BOTTOM" } as const;
@@ -29,6 +36,7 @@ export async function writeText(
   text: TextNode,
   scene: SceneText,
   fonts: FontLoader,
+  links?: StyleLinks,
 ): Promise<void> {
   const firstRun = scene.runs[0];
   if (firstRun === undefined) return;
@@ -63,14 +71,7 @@ export async function writeText(
     const range = clamp(paragraph.start, Math.max(paragraph.end, paragraph.start + 1), length);
     if (range !== undefined) {
       const [s, e] = range;
-      const lineHeight = paragraph.lineHeight;
-      text.setRangeLineHeight(
-        s,
-        e,
-        lineHeight.unit === "auto"
-          ? { unit: "AUTO" }
-          : { unit: lineHeight.unit === "pixels" ? "PIXELS" : "PERCENT", value: lineHeight.value },
-      );
+      text.setRangeLineHeight(s, e, figmaLineHeight(paragraph.lineHeight));
       if (paragraph.list !== "none") {
         text.setRangeListOptions(s, e, {
           type: paragraph.list === "bullet" ? "UNORDERED" : "ORDERED",
@@ -87,8 +88,23 @@ export async function writeText(
     if (scene.paragraphs.some((p) => p.list !== "none")) text.listSpacing = gap;
   }
 
+  // A text style carries paragraph spacing too, while Figma keeps one spacing per node:
+  // link styles only where the node has none, so linking cannot change the layout.
+  if (links !== undefined && gap === 0) await linkStyles(text, scene, links);
+
   text.textAlignHorizontal = ALIGN[scene.align];
   text.textAlignVertical = VALIGN[scene.verticalAlign];
   text.textAutoResize =
     scene.sizing === "fixed" ? "NONE" : scene.sizing === "width" ? "WIDTH_AND_HEIGHT" : "HEIGHT";
+}
+
+async function linkStyles(text: TextNode, scene: SceneText, links: StyleLinks): Promise<void> {
+  const length = text.characters.length;
+  for (const run of scene.runs) {
+    const def = run.textStyle === undefined ? undefined : links.defs.get(run.textStyle);
+    const range = clamp(run.start, run.end, length);
+    if (def === undefined || range === undefined) continue;
+    const id = await links.styles.id(def);
+    if (id !== undefined) await text.setRangeTextStyleIdAsync(range[0], range[1], id);
+  }
 }

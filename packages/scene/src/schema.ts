@@ -158,6 +158,8 @@ export const TextRunSchema = z.object({
   textCase: z.enum(["original", "upper", "lower", "title"]).default("original"),
   decoration: z.enum(["none", "underline", "strikethrough"]).default("none"),
   link: z.url().optional(),
+  /** Name of a text style in the slide's `textStyles` that this run's values equal. */
+  textStyle: z.string().min(1).optional(),
 });
 
 export const LineHeightSchema = z.discriminatedUnion("unit", [
@@ -166,6 +168,21 @@ export const LineHeightSchema = z.discriminatedUnion("unit", [
   /** Percent of the font size (Figma semantics, not "single line spacing"). */
   z.object({ unit: z.literal("percent"), value: z.number().positive() }),
 ]);
+
+/**
+ * A text style the importer found in the source (e.g. a PowerPoint master's title style).
+ * The plugin creates it as a local Figma text style once per file and links matching runs.
+ */
+export const TextStyleSchema = z.object({
+  /** Figma style name; "/" groups styles, e.g. "Q2 deck/Title". */
+  name: z.string().min(1),
+  fontFamily: z.string().min(1),
+  fontStyle: z.string().min(1),
+  fontSize: z.number().positive(),
+  letterSpacing: Finite.default(0),
+  textCase: z.enum(["original", "upper", "lower", "title"]).default("original"),
+  lineHeight: LineHeightSchema.default({ unit: "auto" }),
+});
 
 /** Paragraph `[start, end)`; `end` excludes the separating newline. */
 export const ParagraphSchema = z.object({
@@ -196,6 +213,7 @@ export type EllipseNode = z.infer<typeof EllipseNodeSchema>;
 export type VectorNode = z.infer<typeof VectorNodeSchema>;
 export type ImageNode = z.infer<typeof ImageNodeSchema>;
 export type TextRun = z.infer<typeof TextRunSchema>;
+export type TextStyle = z.infer<typeof TextStyleSchema>;
 export type Paragraph = z.infer<typeof ParagraphSchema>;
 export type TextNode = z.infer<typeof TextNodeSchema>;
 
@@ -231,8 +249,9 @@ export const SlideSchema = z.object({
   height: z.number().positive(),
   background: z.array(PaintSchema).default([]),
   children: z.array(SceneNodeSchema).default([]),
-  /** Speaker notes, plain text with paragraphs separated by "
-". */
+  /** Text styles that runs on this slide refer to by name. */
+  textStyles: z.array(TextStyleSchema).optional(),
+  /** Speaker notes, plain text with paragraphs separated by "\n". */
   notes: z.string().optional(),
 });
 export type Slide = z.infer<typeof SlideSchema>;

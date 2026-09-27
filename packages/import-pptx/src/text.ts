@@ -5,11 +5,17 @@
  * master text style → master placeholder → layout placeholder → the shape's own list style
  * → paragraph `pPr` → run `rPr`.
  */
-import type { Paint, Paragraph, TextNode, TextRun } from "@figbridge/scene";
+import type { Paint, Paragraph, TextNode, TextRun, TextStyle } from "@figbridge/scene";
 import { resolveColor } from "./color.js";
 import { ptToPx, resolveTypeface, round, type SlideContext } from "./context.js";
 import { parseFontStyle } from "./fonts.js";
-import { inheritanceChain, masterTextStyle, type PlaceholderRef } from "./placeholders.js";
+import {
+  inheritanceChain,
+  masterTextStyle,
+  matchPlaceholder,
+  type PlaceholderRef,
+  placeholderFamily,
+} from "./placeholders.js";
 import type { Box } from "./transform.js";
 import { PERCENT } from "./units.js";
 import { attr, child, num, type XmlElement } from "./xml.js";
@@ -202,6 +208,7 @@ export function textNode(
     firstAlign ??= para.algn;
 
     const start = characters.length;
+    const firstRun = runs.length;
     let firstSize = base.sz ?? DEFAULT_SIZE;
     let sawRun = false;
     for (const r of p.children) {
@@ -220,10 +227,12 @@ export function textNode(
     const sizePx = ptToPx(ctx, (firstSize / 100) * body.scale);
     const list = para.bullet === "bullet" || para.bullet === "ordered" ? para.bullet : "none";
     if (list !== "none" && characters.length > start) hasBullets = true;
+    const lineHeight = lineHeightOf(ctx, para.lnSpc, body.lineReduction);
+    linkStyle(ctx, ref, level, runs.slice(firstRun), lineHeight);
     paragraphs.push({
       start,
       end: characters.length,
-      lineHeight: lineHeightOf(ctx, para.lnSpc, body.lineReduction),
+      lineHeight,
       spaceBefore: round(spaceOf(ctx, para.spcBef, sizePx)),
       spaceAfter: round(spaceOf(ctx, para.spcAft, sizePx)),
       list: characters.length > start ? list : "none",
@@ -275,6 +284,77 @@ export function textNode(
       verticalAlign: VALIGN[body.anchor] ?? "top",
       sizing: body.wrap ? "fixed" : "width",
     };
+  }
+}
+
+/** Levels of body text that get a text style of their own. */
+const STYLED_BODY_LEVELS = 3;
+
+/**
+ * The text style a placeholder level defines in the master: its title or body text style
+ * plus the master placeholder's own list style, as PowerPoint resolves them.
+ */
+function masterStyle(
+  ctx: SlideContext,
+  ref: PlaceholderRef | undefined,
+  level: number,
+): TextStyle | undefined {
+  if (ref === undefined) return undefined;
+  const kind = placeholderFamily(ref);
+  let name: string;
+  if (kind === "title" && level === 1) name = "Title";
+  else if (kind === "body" && level <= STYLED_BODY_LEVELS) name = `Body ${String(level)}`;
+  else return undefined;
+  const lvl = `lvl${String(level)}pPr`;
+  const para: ParagraphProps = {};
+  const props: RunProps = {};
+  const sources = [
+    masterTextStyle(ctx, ref),
+    child(child(matchPlaceholder(ctx.master, ref), "txBody"), "lstStyle"),
+  ];
+  for (const source of sources) {
+    for (const el of [child(source, "defPPr"), child(source, lvl)]) {
+      mergeParagraph(para, el);
+      mergeRun(ctx, props, child(el, "defRPr"));
+    }
+  }
+  const run = toRun(ctx, props, 0, 1, 1);
+  return {
+    name: `${ctx.deckName}/${name}`,
+    fontFamily: run.fontFamily,
+    fontStyle: run.fontStyle,
+    fontSize: run.fontSize,
+    letterSpacing: run.letterSpacing,
+    textCase: run.textCase,
+    lineHeight: lineHeightOf(ctx, para.lnSpc, 0),
+  };
+}
+
+/**
+ * Link runs to their master text style when they look exactly like it (font, size, spacing,
+ * case, line height), so applying the style in Figma changes nothing on the slide.
+ */
+function linkStyle(
+  ctx: SlideContext,
+  ref: PlaceholderRef | undefined,
+  level: number,
+  runs: TextRun[],
+  lineHeight: Paragraph["lineHeight"],
+): void {
+  const style = masterStyle(ctx, ref, level);
+  if (style === undefined || JSON.stringify(style.lineHeight) !== JSON.stringify(lineHeight))
+    return;
+  for (const run of runs) {
+    if (
+      run.fontFamily === style.fontFamily &&
+      run.fontStyle === style.fontStyle &&
+      run.fontSize === style.fontSize &&
+      run.letterSpacing === style.letterSpacing &&
+      run.textCase === style.textCase
+    ) {
+      run.textStyle = style.name;
+      ctx.textStyles.set(style.name, style);
+    }
   }
 }
 

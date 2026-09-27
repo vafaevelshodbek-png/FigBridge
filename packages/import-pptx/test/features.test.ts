@@ -341,6 +341,71 @@ describe("pictures", () => {
   });
 });
 
+describe("text styles", () => {
+  const masterTextStyles =
+    `<p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"><a:latin typeface="+mj-lt"/></a:defRPr></a:lvl1pPr></p:titleStyle>` +
+    `<p:bodyStyle><a:lvl1pPr><a:defRPr sz="2800"/></a:lvl1pPr><a:lvl2pPr><a:defRPr sz="2400"/></a:lvl2pPr></p:bodyStyle>`;
+  const placeholder = (type: string, paragraphs: string) =>
+    `<p:sp><p:nvSpPr><p:cNvPr id="2" name="${type}"/><p:cNvSpPr/><p:nvPr><p:ph type="${type}"/></p:nvPr></p:nvSpPr>` +
+    `<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="6096000" cy="1828800"/></a:xfrm></p:spPr>` +
+    `<p:txBody><a:bodyPr/>${paragraphs}</p:txBody></p:sp>`;
+
+  it("links text that looks exactly like the master's title and body styles", async () => {
+    const result = await importPptx(
+      buildPptx({
+        masterTextStyles,
+        slides: [
+          {
+            shapes:
+              placeholder("title", `<a:p><a:r><a:t>Quarter</a:t></a:r></a:p>`) +
+              placeholder(
+                "body",
+                `<a:p><a:r><a:t>Point</a:t></a:r></a:p><a:p><a:pPr lvl="1"/><a:r><a:t>Detail</a:t></a:r></a:p>`,
+              ),
+          },
+        ],
+      }),
+      "Q2 deck.pptx",
+    );
+    const slide = result.scene.slides[0];
+    // 1 pt = 2 px on a 1920 px wide 16:9 slide; the theme's major font is Calibri Light.
+    expect(
+      slide?.textStyles?.map((s) => [s.name, `${s.fontFamily} ${s.fontStyle}`, s.fontSize]),
+    ).toEqual([
+      ["Q2 deck/Title", "Calibri Light", 88],
+      ["Q2 deck/Body 1", "Calibri Regular", 56],
+      ["Q2 deck/Body 2", "Calibri Regular", 48],
+    ]);
+    const texts = (slide?.children ?? []).filter((n) => n.type === "text");
+    expect(texts.flatMap((t) => t.runs.map((r) => r.textStyle))).toEqual([
+      "Q2 deck/Title",
+      "Q2 deck/Body 1",
+      "Q2 deck/Body 2",
+    ]);
+  });
+
+  it("leaves text that overrides the style unlinked", async () => {
+    const result = await importPptx(
+      buildPptx({
+        masterTextStyles,
+        slides: [
+          {
+            shapes: placeholder(
+              "title",
+              `<a:p><a:r><a:rPr sz="3200"/><a:t>Smaller</a:t></a:r></a:p>`,
+            ),
+          },
+        ],
+      }),
+      "deck.pptx",
+    );
+    const slide = result.scene.slides[0];
+    expect(slide?.textStyles).toBeUndefined();
+    const text = slide?.children.find((n) => n.type === "text");
+    expect(text?.type === "text" ? text.runs[0]?.textStyle : "none").toBeUndefined();
+  });
+});
+
 describe("charts", () => {
   const frame =
     `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="5" name="Chart"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>` +

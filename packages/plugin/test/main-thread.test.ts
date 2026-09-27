@@ -295,6 +295,68 @@ describe("write methods", () => {
     send({ kind: "access.set", mode: "unrestricted" });
   });
 
+  it("scene.render creates each text style once and links the runs that match it", async () => {
+    const styled: Slide = {
+      ...slide,
+      textStyles: [
+        {
+          name: "Deck/Title",
+          fontFamily: "Inter",
+          fontStyle: "Bold",
+          fontSize: 40,
+          letterSpacing: 0,
+          textCase: "original",
+          lineHeight: { unit: "auto" },
+        },
+      ],
+      children: [
+        {
+          id: "t",
+          name: "Title",
+          type: "text",
+          x: 0,
+          y: 0,
+          w: 300,
+          h: 60,
+          rotation: 0,
+          flipX: false,
+          flipY: false,
+          opacity: 1,
+          visible: true,
+          characters: "Hello",
+          runs: [
+            {
+              start: 0,
+              end: 5,
+              fontFamily: "Inter",
+              fontStyle: "Bold",
+              fontSize: 40,
+              fill: { type: "solid", color: "#000000", opacity: 1 },
+              letterSpacing: 0,
+              textCase: "original",
+              decoration: "none",
+              textStyle: "Deck/Title",
+            },
+          ],
+          paragraphs: [],
+          align: "left",
+          verticalAlign: "top",
+          sizing: "fixed",
+        },
+      ],
+    };
+    ok(await call("scene.render", { slide: styled, x: 0, y: 0 }));
+    ok(await call("scene.render", { slide: styled, x: 0, y: 400 }));
+    expect(fake.textStyles.map((s) => [s.name, s.fontName.style, s.fontSize])).toEqual([
+      ["Deck/Title", "Bold", 40],
+    ]);
+    const texts = fake.all().filter((n) => n.type === "TEXT");
+    expect(texts.map((t) => t.styleRanges)).toEqual([
+      [{ start: 0, end: 5, id: fake.textStyles[0]?.id }],
+      [{ start: 0, end: 5, id: fake.textStyles[0]?.id }],
+    ]);
+  });
+
   it("scene.render builds the frame, substitutes fonts and commits one undo step", async () => {
     serveBlobs({ [`sha256:${"b".repeat(64)}`]: PNG });
     const result = ok(await call("scene.render", { slide, x: 100, y: 50 }));

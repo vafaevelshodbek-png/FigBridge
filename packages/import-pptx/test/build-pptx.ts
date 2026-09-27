@@ -18,6 +18,8 @@ export interface DeckSpec {
   slides: SlideSpec[];
   /** Extra parts: path → XML string or bytes (media, charts). */
   parts?: Record<string, string | Uint8Array>;
+  /** Children of the master's `p:txStyles` (titleStyle, bodyStyle, otherStyle). */
+  masterTextStyles?: string;
   /** `a:clrScheme` children; defaults to Office colours. */
   colors?: string;
   width?: number;
@@ -118,7 +120,7 @@ export function buildPptx(spec: DeckSpec): Uint8Array {
   );
   put(
     "ppt/slideMasters/slideMaster1.xml",
-    `<p:sldMaster><p:cSld><p:spTree/></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rLayout"/></p:sldLayoutIdLst></p:sldMaster>`,
+    `<p:sldMaster><p:cSld><p:spTree/></p:cSld>${spec.masterTextStyles === undefined ? "" : `<p:txStyles>${spec.masterTextStyles}</p:txStyles>`}<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rLayout"/></p:sldLayoutIdLst></p:sldMaster>`,
   );
   put(
     "ppt/slideMasters/_rels/slideMaster1.xml.rels",

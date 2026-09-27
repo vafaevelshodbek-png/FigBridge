@@ -19,7 +19,8 @@ import {
   translateLocal,
 } from "./geometry.js";
 import { applyStrokes, type ImageResolver, toFigmaPaints } from "./paints.js";
-import { writeText } from "./text.js";
+import { type StyleLinks, writeText } from "./text.js";
+import { TextStyles } from "./text-styles.js";
 
 export interface RenderContext {
   fonts: FontLoader;
@@ -35,6 +36,7 @@ const YIELD_EVERY = 25;
 
 export class SceneRenderer {
   #count = 0;
+  #links: StyleLinks | undefined;
 
   constructor(private readonly ctx: RenderContext) {}
 
@@ -57,6 +59,14 @@ export class SceneRenderer {
     frame.y = y;
     frame.clipsContent = true;
     frame.fills = await toFigmaPaints(slide.background, this.ctx.images);
+    const defs = slide.textStyles ?? [];
+    this.#links =
+      defs.length === 0
+        ? undefined
+        : {
+            styles: new TextStyles(this.ctx.fonts, this.ctx.warnings),
+            defs: new Map(defs.map((d) => [d.name, d])),
+          };
     await this.renderChildren(slide.children, frame);
     return frame;
   }
@@ -198,7 +208,7 @@ export class SceneRenderer {
       }
       case "text": {
         const text = attach(figma.createText());
-        await writeText(text, node, this.ctx.fonts);
+        await writeText(text, node, this.ctx.fonts, this.#links);
         if (node.sizing === "fixed") text.resize(safeSize(node.w), safeSize(node.h));
         else if (node.sizing === "height") text.resize(safeSize(node.w), text.height);
         this.#checkOverflow(text, node);

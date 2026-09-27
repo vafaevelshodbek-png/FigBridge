@@ -2,7 +2,7 @@
  * Per-slide conversion context: the slide → layout → master → theme chain, colour and
  * font resolution, output units, and the sinks for blobs and warnings.
  */
-import type { Paint } from "@figbridge/scene";
+import type { Paint, TextStyle } from "@figbridge/scene";
 import type { ColorContext } from "./color.js";
 import type { Package } from "./package.js";
 import { EMU_PER_POINT } from "./units.js";
@@ -43,6 +43,10 @@ export interface SlideContext {
   /** `presentation.xml` default text style (base for non-placeholder text). */
   readonly defaultTextStyle: XmlElement | undefined;
   readonly blobs: BlobStore;
+  /** Deck name without extension; prefixes the text styles found in it. */
+  readonly deckName: string;
+  /** Text styles runs on this slide link to, by name. */
+  readonly textStyles: Map<string, TextStyle>;
   /** Fills of the enclosing groups, innermost last (for `grpFill`). */
   readonly groupFills: Paint[][];
   warn(message: string): void;

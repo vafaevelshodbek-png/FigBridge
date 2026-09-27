@@ -27,6 +27,11 @@ function family(type: string): string {
   return type;
 }
 
+/** "title", "body" or another placeholder family for a placeholder reference. */
+export function placeholderFamily(ref: PlaceholderRef): string {
+  return family(ref.type);
+}
+
 /** The matching placeholder shape in `part` (by idx first, then by type). */
 export function matchPlaceholder(
   part: Part | undefined,

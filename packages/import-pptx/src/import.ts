@@ -146,6 +146,7 @@ function convert(pkg: Package, name: string, options: ImportOptions): ImportResu
         child(presentation, "defaultTextStyle"),
         blobs,
         warnings,
+        name.replace(/\.pptx$/i, ""),
       ),
     );
     options.onPage?.(index + 1, numbers.length);
@@ -177,6 +178,7 @@ function convertSlide(
   defaultTextStyle: XmlElement | undefined,
   blobs: BlobStore,
   warnings: string[],
+  deckName: string,
 ): Slide {
   const slide = part(pkg, slideName);
   if (slide === undefined) throw new TypeError(`Slide ${String(number)} cannot be read.`);
@@ -205,6 +207,8 @@ function convertSlide(
     },
     defaultTextStyle,
     blobs,
+    deckName,
+    textStyles: new Map(),
     groupFills: [],
     warn: (message) => warnings.push(message),
     nextId: () => `s${String(number)}_${String(++counter)}`,
@@ -243,6 +247,7 @@ function convertSlide(
     height: Math.round(cy * scale * 100) / 100,
     background: background(ctx, [slide, layout, master]),
     children,
+    ...(ctx.textStyles.size === 0 ? {} : { textStyles: [...ctx.textStyles.values()] }),
     ...(notes === undefined ? {} : { notes }),
   };
 }
