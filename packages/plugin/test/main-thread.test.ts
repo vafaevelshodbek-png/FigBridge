@@ -660,3 +660,50 @@ describe("undo agent", () => {
     expect(await undoNow()).toMatch(/cannot be undone by the plugin — use Ctrl\+Z/);
   });
 });
+
+describe("slides and speaker notes", () => {
+  beforeEach(() => {
+    send({ kind: "access.set", mode: "unrestricted" });
+  });
+
+  const deckSlide = (height: number, notes?: string): Slide => ({
+    ...slide,
+    width: 1920,
+    height,
+    children: [{ ...slide.children[0], x: 100, y: 100 } as Slide["children"][number]],
+    ...(notes === undefined ? {} : { notes }),
+  });
+
+  it("in a design file, pages stay frames on the canvas, with notes kept on them", async () => {
+    const result = ok(
+      await call("scene.render", { slide: deckSlide(1080, "Say hello"), x: 0, y: 0 }),
+    );
+    const frame = (await fake.getNodeByIdAsync(result["frameId"] as string)) as FakeNode;
+    expect(frame.type).toBe("FRAME");
+    expect(frame.getPluginData("figbridge.notes")).toBe("Say hello");
+    expect(frame.annotations).toEqual([{ label: "Say hello" }]);
+  });
+
+  it("in Figma Slides, a 16:9 page becomes a slide whose layers are its own", async () => {
+    fake.editorType = "slides";
+    const result = ok(await call("scene.render", { slide: deckSlide(1080), x: 500, y: 500 }));
+    const node = (await fake.getNodeByIdAsync(result["frameId"] as string)) as FakeNode;
+    expect(node.type).toBe("SLIDE");
+    expect(node.children.map((c) => c.type)).toEqual(["TEXT"]);
+    expect(node.children[0]?.x).toBe(100);
+  });
+
+  it("in Figma Slides, a 4:3 page is scaled to fit and centred, notes as a hidden layer", async () => {
+    fake.editorType = "slides";
+    const result = ok(
+      await call("scene.render", { slide: deckSlide(1440, "Two minutes"), x: 0, y: 0 }),
+    );
+    const node = (await fake.getNodeByIdAsync(result["frameId"] as string)) as FakeNode;
+    const content = node.children.find((c) => c.name === "Content");
+    expect(content).toBeDefined();
+    expect(content?.height).toBeCloseTo(1080, 0);
+    expect(content?.x).toBeCloseTo((1920 - 1440) / 2, 0);
+    const notes = node.children.find((c) => c.name === "Speaker notes");
+    expect(notes).toMatchObject({ visible: false, locked: true, characters: "Two minutes" });
+  });
+});

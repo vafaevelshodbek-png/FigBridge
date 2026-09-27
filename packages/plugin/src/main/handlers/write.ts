@@ -4,6 +4,7 @@
 import type { SceneNode as SceneNodeIR } from "@figbridge/scene";
 import { hexToRgb } from "../render/geometry.js";
 import { SceneRenderer } from "../render/scene-renderer.js";
+import { attachNotes, fitIntoSlide } from "../render/slides.js";
 import { capture } from "../undo.js";
 import { type Handler, PluginError, requireContainer, requireNode } from "./context.js";
 import { summarize } from "./summary.js";
@@ -31,16 +32,25 @@ export const sceneRender: Handler<"scene.render"> = async (
       ctx.progress(renderer.created, total);
     },
   });
+  // In Figma Slides every imported page becomes a real slide; elsewhere a frame on the canvas.
+  const slideNode =
+    figma.editorType === "slides" && replaceId === undefined ? figma.createSlide() : undefined;
+  if (slideNode !== undefined) {
+    parent = slideNode;
+    position = { x: 0, y: 0 };
+  }
   const frame = await renderer.renderSlide(slide, parent, position.x, position.y);
+  const placed = slideNode === undefined ? frame : fitIntoSlide(slideNode, frame);
+  if (slide.notes !== undefined) await attachNotes(placed, slide.notes, ctx.fonts);
   figma.commitUndo();
   ctx.undo.record({
     kind: "created",
     label: `${replaceId === undefined ? "add" : "replace with"} slide "${slide.name}"`,
-    nodeIds: [frame.id],
+    nodeIds: [placed.id],
   });
   for (const [wanted, used] of ctx.fonts.substitutions)
     warnings.push(`font ${wanted} replaced by ${used}`);
-  return { frameId: frame.id, created: renderer.created, warnings };
+  return { frameId: placed.id, created: renderer.created, warnings };
 };
 
 export const nodesCreate: Handler<"nodes.create"> = async ({ nodes, parentId }, ctx) => {

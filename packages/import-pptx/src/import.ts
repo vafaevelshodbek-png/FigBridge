@@ -11,7 +11,7 @@ import { type BlobStore, type Part, readTheme, type SlideContext } from "./conte
 import { fillElement, paintsOf, solid, themeFill } from "./fill.js";
 import { Package } from "./package.js";
 import { walkTree } from "./shapes.js";
-import { attr, child, childrenOf, num, path, type XmlElement } from "./xml.js";
+import { attr, child, childrenOf, findAll, num, path, type XmlElement } from "./xml.js";
 
 export interface ImportOptions {
   /** Output slide width in px; height follows the slide aspect ratio. Default 1920. */
@@ -177,13 +177,37 @@ function convertSlide(
     }),
   );
 
+  const notes = speakerNotes(pkg, slideName);
   return {
     name: String(number).padStart(2, "0"),
     width: Math.round(cx * scale * 100) / 100,
     height: Math.round(cy * scale * 100) / 100,
     background: background(ctx, [slide, layout, master]),
     children,
+    ...(notes === undefined ? {} : { notes }),
   };
+}
+
+/**
+ * The slide's speaker notes: the text of the body placeholder of its notes slide, one line
+ * per paragraph. Undefined when the slide has none.
+ */
+function speakerNotes(pkg: Package, slideName: string): string | undefined {
+  const notesPart = pkg.related(slideName, "notesSlide");
+  const tree = path(notesPart === undefined ? undefined : pkg.xml(notesPart), "cSld/spTree");
+  for (const sp of childrenOf(tree, "sp")) {
+    if (attr(path(sp, "nvSpPr/nvPr/ph"), "type") !== "body") continue;
+    const text = childrenOf(child(sp, "txBody"), "p")
+      .map((p) =>
+        findAll(p, "t")
+          .map((t) => t.text)
+          .join(""),
+      )
+      .join("\n")
+      .trim();
+    return text === "" ? undefined : text;
+  }
+  return undefined;
 }
 
 /** First background along slide → layout → master; white when none is defined. */

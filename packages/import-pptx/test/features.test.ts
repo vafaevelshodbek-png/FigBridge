@@ -518,3 +518,29 @@ describe("text details", () => {
     expect(sub).toBeCloseTo((normal ?? 0) * (2 / 3), 1);
   });
 });
+
+describe("speaker notes", () => {
+  it("are read from the notes slide's body placeholder, one line per paragraph", async () => {
+    const result = await importDeck({
+      slides: [
+        {
+          shapes: "",
+          rels: `<Relationship Id="rNotes" Target="../notesSlides/notesSlide1.xml"/>`,
+        },
+        { shapes: "" },
+      ],
+      parts: {
+        "ppt/notesSlides/notesSlide1.xml":
+          `<p:notes><p:cSld><p:spTree>` +
+          `<p:sp><p:nvSpPr><p:cNvPr id="2" name="Image"/><p:cNvSpPr/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>` +
+          `<p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/>` +
+          `<p:txBody><a:bodyPr/><a:p><a:r><a:t>Hello, </a:t></a:r><a:r><a:t>everyone.</a:t></a:r></a:p><a:p><a:r><a:t>Two minutes.</a:t></a:r></a:p></p:txBody></p:sp>` +
+          `</p:spTree></p:cSld></p:notes>`,
+      },
+    });
+    expect(result.scene.slides.map((s) => s.notes)).toEqual([
+      "Hello, everyone.\nTwo minutes.",
+      undefined,
+    ]);
+  });
+});

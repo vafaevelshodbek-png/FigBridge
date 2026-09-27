@@ -262,15 +262,18 @@ export const TOOLS: readonly ToolDefinition[] = [
     name: "figma_import_deck",
     title: "Import a PDF or PPTX deck as editable slides",
     description:
-      "Convert a PDF (presentation, report, any document) or a PowerPoint .pptx into editable Figma frames (one per page): backgrounds as fills, cards as rounded rectangles, logos/icons as vectors, photos as image layers, text as editable paragraphs. Frames are laid out in a grid starting at (x, y) on the current page — pick a spot below existing content. Large decks take a while; pass `pages` to try a few first.",
+      "Convert a PDF (presentation, report, any document) or a PowerPoint .pptx into editable Figma frames (one per page): backgrounds as fills, cards as rounded rectangles, logos/icons as vectors, photos as image layers, text as editable paragraphs. In a design file the frames are laid out in a grid, by default below everything already on the page (so several decks stack for comparison); in Figma Slides every page becomes a slide. Speaker notes are kept on each frame. Large decks take a while; pass `pages` to try a few first.",
     input: z.object({
       path: z.string().describe("Absolute path to a .pdf or .pptx file on this computer."),
       pages: z
         .array(z.number().int().positive())
         .optional()
         .describe("1-based page numbers; default all."),
-      x: z.number().default(0),
-      y: z.number().default(0),
+      x: z
+        .number()
+        .optional()
+        .describe("Grid origin; omit x and y to place below existing content."),
+      y: z.number().optional(),
       columns: z.number().int().min(1).max(20).default(6),
       session: Session,
     }),

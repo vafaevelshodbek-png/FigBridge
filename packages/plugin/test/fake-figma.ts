@@ -81,7 +81,7 @@ function imageSize(bytes: Uint8Array): { width: number; height: number } {
 
 export class FakeFigma {
   readonly mixed = Symbol("mixed");
-  readonly editorType = "figma";
+  editorType: "figma" | "slides" = "figma";
   readonly images = new Map<string, { width: number; height: number }>();
   readonly availableFonts = new Set([
     "Inter\u0000Regular",
@@ -126,6 +126,14 @@ export class FakeFigma {
   }
 
   createFrame = () => new FakeNode(this, "FRAME");
+  /** Figma Slides only: a 1920 × 1080 slide appended to the presentation. */
+  createSlide = () => {
+    if (this.editorType !== "slides") fail("createSlide is only available in Figma Slides");
+    const slide = new FakeNode(this, "SLIDE");
+    slide.resize(1920, 1080);
+    this.currentPage.appendChild(slide);
+    return slide;
+  };
   createRectangle = () => new FakeNode(this, "RECTANGLE");
   createEllipse = () => new FakeNode(this, "ELLIPSE");
   /** Like Figma's, a new vector has a 1 px black stroke until told otherwise. */
@@ -293,6 +301,31 @@ export class FakeNode {
   removed = false;
   selection: FakeNode[] = [];
   readonly pluginData = new Map<string, string>();
+  annotations: readonly { label?: string }[] = [];
+  locked = false;
+  #fontSize = 12;
+  get fontSize(): number {
+    return this.#fontSize;
+  }
+  set fontSize(value: number) {
+    if (finite(value, "fontSize") < 1) fail("fontSize must be >= 1");
+    this.#fontSize = value;
+  }
+
+  /** Scale the node and its content (Figma's rescale): here size, and children's boxes. */
+  rescale(scale: number): void {
+    if (finite(scale, "rescale") < 0.01) fail("rescale must be >= 0.01");
+    this.resize(this.width * scale, this.height * scale);
+    const walk = (node: FakeNode) => {
+      for (const child of node.children) {
+        child.x *= scale;
+        child.y *= scale;
+        child.resize(Math.max(0.01, child.width * scale), Math.max(0.01, child.height * scale));
+        walk(child);
+      }
+    };
+    walk(this);
+  }
 
   getPluginData(key: string): string {
     return this.pluginData.get(key) ?? "";

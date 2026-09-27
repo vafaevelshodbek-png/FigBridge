@@ -231,6 +231,9 @@ export const SlideSchema = z.object({
   height: z.number().positive(),
   background: z.array(PaintSchema).default([]),
   children: z.array(SceneNodeSchema).default([]),
+  /** Speaker notes, plain text with paragraphs separated by "
+". */
+  notes: z.string().optional(),
 });
 export type Slide = z.infer<typeof SlideSchema>;
 

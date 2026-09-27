@@ -220,16 +220,16 @@ program
   .description("Import a PDF or PPTX into the connected Figma file as editable slides")
   .argument("<file>", "path to a .pdf or .pptx file")
   .option("-p, --pages <list>", "comma-separated 1-based pages, e.g. 1,3,5")
-  .option("--x <n>", "grid origin x", "0")
-  .option("--y <n>", "grid origin y", "0")
+  .option("--x <n>", "grid origin x (default: below existing content)")
+  .option("--y <n>", "grid origin y (default: below existing content)")
   .option("-s, --session <id>", "target session")
   .action(
-    async (file: string, options: { pages?: string; x: string; y: string; session?: string }) => {
+    async (file: string, options: { pages?: string; x?: string; y?: string; session?: string }) => {
       const result = await importDeck(remote(), {
         path: resolve(file),
         pages: options.pages?.split(",").map(Number),
-        x: Number(options.x),
-        y: Number(options.y),
+        x: options.x === undefined ? undefined : Number(options.x),
+        y: options.y === undefined ? undefined : Number(options.y),
         session: options.session,
         onProgress: (done, total) => {
           process.stderr.write(`slide ${String(done)}/${String(total)}

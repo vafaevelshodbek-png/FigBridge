@@ -13,7 +13,7 @@ import type { HubClient } from "./client.js";
 export interface ImportDeckOptions {
   path: string;
   pages?: readonly number[] | undefined;
-  /** Top-left of the grid on the current page. */
+  /** Top-left of the grid on the current page; default: below everything already there. */
   x?: number | undefined;
   y?: number | undefined;
   columns?: number | undefined;
@@ -73,11 +73,15 @@ export async function importDeck(
   const run = ulid();
   const columns = options.columns ?? 6;
   const gap = options.gap ?? 200;
+  const origin =
+    options.x !== undefined && options.y !== undefined
+      ? { x: options.x, y: options.y }
+      : await freeSpot(client, options.session, options.signal, gap);
   const frames: ImportDeckResult["frames"] = [];
   for (const [index, slide] of scene.slides.entries()) {
     options.signal?.throwIfAborted();
-    const x = (options.x ?? 0) + (index % columns) * (slide.width + gap);
-    const y = (options.y ?? 0) + Math.floor(index / columns) * (slide.height + gap);
+    const x = origin.x + (index % columns) * (slide.width + gap);
+    const y = origin.y + Math.floor(index / columns) * (slide.height + gap);
     let rendered: MethodResult<"scene.render">;
     try {
       rendered = await client.call(
@@ -105,4 +109,31 @@ export async function importDeck(
     options.onProgress?.(index + 1, scene.slides.length);
   }
   return { frames, warnings: [...new Set(warnings)] };
+}
+
+/** Top-level layers read when looking for free space (a page rarely has more). */
+const OUTLINE_LIMIT = 500;
+
+/**
+ * Where a new grid goes when the caller did not say: left-aligned with the page's content,
+ * one gap below its lowest layer — so importing several decks one after another stacks
+ * them instead of piling them up at (0, 0). In Figma Slides placement does not apply.
+ */
+async function freeSpot(
+  client: HubClient,
+  session: string | undefined,
+  signal: AbortSignal | undefined,
+  gap: number,
+): Promise<{ x: number; y: number }> {
+  const { nodes } = await client.call(
+    "document.outline",
+    { depth: 1, limit: OUTLINE_LIMIT },
+    { session, signal },
+  );
+  const boxes = nodes.flatMap((n) => (n.box === undefined ? [] : [n.box]));
+  if (boxes.length === 0) return { x: 0, y: 0 };
+  return {
+    x: Math.min(...boxes.map((b) => b.x)),
+    y: Math.max(...boxes.map((b) => b.y + b.h)) + gap * 2,
+  };
 }

@@ -39,6 +39,18 @@ beforeEach(async () => {
     port,
     token: TOKEN,
     handlers: {
+      // What is already on the page: one frame 2000 px tall at (500, 0).
+      "document.outline": () => ({
+        nodes: [
+          {
+            id: "9:9",
+            name: "Earlier",
+            type: "FRAME",
+            depth: 0,
+            box: { x: 500, y: 0, w: 1920, h: 2000 },
+          },
+        ],
+      }),
       "scene.render": (params) => {
         if (calls++ === failAt) throw new Error("the plugin window was closed");
         rendered.push(params as (typeof rendered)[number]);
@@ -95,6 +107,12 @@ describe("importDeck", () => {
       data: { frames: [{ page: "01", frameId: "1:101" }], failedPage: "02" },
     });
     expect(rendered).toHaveLength(1);
+  });
+
+  it("without coordinates, places the grid below what is already on the page", async () => {
+    await importDeck(client, { path: DECK, pages: [1] });
+    // Left-aligned with the page's content, two gaps (2 × 200) below its bottom.
+    expect(rendered.map((r) => [r.x, r.y])).toEqual([[500, 2400]]);
   });
 
   it("rejects unsupported files with a clear error", async () => {
