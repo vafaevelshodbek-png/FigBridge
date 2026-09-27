@@ -51,7 +51,9 @@ describe("fills", () => {
       ) + shape("b", `<a:solidFill><a:schemeClr val="accent2"/></a:solidFill>`),
     );
     expect(fillsOf(nodes[0])).toEqual([{ type: "solid", color: "#FF0000", opacity: 0.5 }]);
-    expect(fillsOf(nodes[1])).toEqual([{ type: "solid", color: "#ED7D31", opacity: 1 }]);
+    expect(fillsOf(nodes[1])).toEqual([
+      { type: "solid", color: "#ED7D31", opacity: 1, variable: "accent2" },
+    ]);
   });
 
   it("linear gradients follow the angle; path gradients are radial", async () => {
@@ -102,7 +104,9 @@ describe("fills", () => {
         }),
     );
     expect(nodes.map((n) => n.name)).toEqual(["styled"]);
-    expect(fillsOf(nodes[0])).toEqual([{ type: "solid", color: "#70AD47", opacity: 1 }]);
+    expect(fillsOf(nodes[0])).toEqual([
+      { type: "solid", color: "#70AD47", opacity: 1, variable: "accent6" },
+    ]);
   });
 });
 
@@ -341,6 +345,44 @@ describe("pictures", () => {
   });
 });
 
+describe("theme colour variables", () => {
+  const rect = (fill: string) =>
+    shape("Box", `<a:prstGeom prst="rect"/><a:solidFill>${fill}</a:solidFill>`);
+
+  it("marks paints that are exactly a theme colour and lists the theme", async () => {
+    const result = await importDeck({
+      slides: [
+        {
+          shapes:
+            rect(`<a:schemeClr val="accent1"/>`) +
+            rect(`<a:schemeClr val="accent1"><a:alpha val="50000"/></a:schemeClr>`) +
+            rect(`<a:schemeClr val="accent1"><a:lumMod val="75000"/></a:schemeClr>`) +
+            rect(`<a:srgbClr val="4472C4"/>`),
+        },
+      ],
+    });
+    const slide = result.scene.slides[0];
+    const fills = (slide?.children ?? []).map((n) => (n.type === "rect" ? n.fills[0] : undefined));
+    expect(fills.map((f) => (f?.type === "solid" ? f.variable : "?"))).toEqual([
+      "accent1",
+      "accent1",
+      undefined,
+      undefined,
+    ]);
+    expect(slide?.colorVariables?.collection).toBe("test/Theme");
+    expect(slide?.colorVariables?.colors).toHaveLength(12);
+    expect(slide?.colorVariables?.colors).toContainEqual({ name: "accent1", color: "#4472C4" });
+  });
+
+  it("maps tx1 through the colour map to dk1", async () => {
+    const result = await importDeck({ slides: [{ shapes: rect(`<a:schemeClr val="tx1"/>`) }] });
+    const node = result.scene.slides[0]?.children[0];
+    expect(node?.type === "rect" && node.fills[0]?.type === "solid" && node.fills[0].variable).toBe(
+      "dk1",
+    );
+  });
+});
+
 describe("text styles", () => {
   const masterTextStyles =
     `<p:titleStyle><a:lvl1pPr><a:defRPr sz="4400"><a:latin typeface="+mj-lt"/></a:defRPr></a:lvl1pPr></p:titleStyle>` +
@@ -436,9 +478,9 @@ describe("charts", () => {
     expect(slices).toHaveLength(3);
     for (const slice of slices) expect(isFigmaPath(slice.paths[0]?.d ?? "")).toBe(true);
     expect(slices.map((s) => fillsOf(s)[0])).toEqual([
-      { type: "solid", color: "#4472C4", opacity: 1 },
-      { type: "solid", color: "#ED7D31", opacity: 1 },
-      { type: "solid", color: "#A5A5A5", opacity: 1 },
+      { type: "solid", color: "#4472C4", opacity: 1, variable: "accent1" },
+      { type: "solid", color: "#ED7D31", opacity: 1, variable: "accent2" },
+      { type: "solid", color: "#A5A5A5", opacity: 1, variable: "accent3" },
     ]);
     expect(nodes.flatMap((n) => (n.type === "text" ? [n.characters] : []))).toEqual([
       "Q1",

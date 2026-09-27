@@ -295,6 +295,52 @@ describe("write methods", () => {
     send({ kind: "access.set", mode: "unrestricted" });
   });
 
+  it("scene.render binds theme colours to one variable collection, reused across slides", async () => {
+    const themed: Slide = {
+      ...slide,
+      colorVariables: {
+        collection: "Deck/Theme",
+        colors: [{ name: "accent1", color: "#4472C4" }],
+      },
+      background: [{ type: "solid", color: "#4472C4", opacity: 1, variable: "accent1" }],
+      children: [],
+    };
+    ok(await call("scene.render", { slide: themed, x: 0, y: 0 }));
+    ok(await call("scene.render", { slide: themed, x: 0, y: 400 }));
+    expect(fake.collections.map((c) => c.name)).toEqual(["Deck/Theme"]);
+    expect(fake.localVariables.map((v) => v.name)).toEqual(["accent1"]);
+    const variable = fake.localVariables[0];
+    const frames = fake.currentPage.children.filter((n) => n.type === "FRAME");
+    for (const frame of frames)
+      expect(frame.fills).toEqual([
+        {
+          type: "SOLID",
+          color: { r: 0x44 / 255, g: 0x72 / 255, b: 0xc4 / 255 },
+          opacity: 1,
+          boundVariables: { color: { type: "VARIABLE_ALIAS", id: variable?.id } },
+        },
+      ]);
+  });
+
+  it("scene.render leaves a colour unbound when the variable already has another value", async () => {
+    const collection = fake.variables.createVariableCollection("Deck/Theme");
+    fake.variables
+      .createVariable("accent1", collection, "COLOR")
+      .setValueForMode(collection.defaultModeId, { r: 1, g: 0, b: 0 });
+    const themed: Slide = {
+      ...slide,
+      colorVariables: { collection: "Deck/Theme", colors: [{ name: "accent1", color: "#4472C4" }] },
+      background: [{ type: "solid", color: "#4472C4", opacity: 1, variable: "accent1" }],
+      children: [],
+    };
+    const result = ok(await call("scene.render", { slide: themed, x: 0, y: 0 }));
+    expect(result["warnings"]).toContainEqual(
+      expect.stringContaining("already exists with another value"),
+    );
+    const frame = fake.currentPage.children.at(-1);
+    expect(JSON.stringify(frame?.fills)).not.toContain("boundVariables");
+  });
+
   it("scene.render creates each text style once and links the runs that match it", async () => {
     const styled: Slide = {
       ...slide,

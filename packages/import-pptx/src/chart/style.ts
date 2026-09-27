@@ -2,7 +2,7 @@
  * Shared chart drawing: text styles, series colours, and the rectangle/label nodes every chart type emits.
  */
 import type { Paint, SceneNode, Stroke, TextNode, VectorNode } from "@figbridge/scene";
-import { resolveColor } from "../color.js";
+import { resolveColor, solidPaint } from "../color.js";
 import { ptToPx, resolveTypeface, round, type SlideContext } from "../context.js";
 import { fillElement, paintsOf } from "../fill.js";
 import { parseFontStyle } from "../fonts.js";
@@ -31,8 +31,7 @@ export function textStyle(ctx: SlideContext, el: XmlElement | undefined): TextSt
     sizePx: ptToPx(ctx, num(def, "sz", 1000) / 100),
     bold: attr(def, "b") === "1",
     font: resolveTypeface(ctx.theme, attr(child(def, "latin"), "typeface")) ?? ctx.theme.minorFont,
-    fill:
-      color === undefined ? undefined : { type: "solid", color: color.color, opacity: color.alpha },
+    fill: color === undefined ? undefined : solidPaint(color),
   };
 }
 
@@ -55,9 +54,7 @@ export function accent(ctx: SlideContext, index: number): Paint {
     { name: "solidFill", attrs: {}, children: [scheme], text: "" },
     ctx.colors,
   );
-  return color === undefined
-    ? DEFAULT_BAR
-    : { type: "solid", color: color.color, opacity: color.alpha };
+  return color === undefined ? DEFAULT_BAR : solidPaint(color);
 }
 
 export function firstPaint(

@@ -134,6 +134,32 @@ export class FakeFigma {
   }
 
   readonly textStyles: FakeTextStyle[] = [];
+  readonly collections: FakeVariableCollection[] = [];
+  readonly localVariables: FakeVariable[] = [];
+
+  readonly variables = {
+    getLocalVariableCollectionsAsync: () => Promise.resolve([...this.collections]),
+    getLocalVariablesAsync: (type?: string) =>
+      Promise.resolve(
+        this.localVariables.filter((v) => type === undefined || v.resolvedType === type),
+      ),
+    createVariableCollection: (name: string) => {
+      const collection = new FakeVariableCollection(`VC:${String(this.#nextId++)}`, name);
+      this.collections.push(collection);
+      return collection;
+    },
+    createVariable: (name: string, collection: FakeVariableCollection, type: string) => {
+      if (!this.collections.includes(collection)) fail("createVariable: unknown collection");
+      const variable = new FakeVariable(`V:${String(this.#nextId++)}`, name, collection, type);
+      this.localVariables.push(variable);
+      return variable;
+    },
+    setBoundVariableForPaint: (paint: { type: string }, field: string, variable: FakeVariable) => {
+      if (paint.type !== "SOLID" || field !== "color")
+        fail("setBoundVariableForPaint: SOLID color only");
+      return { ...paint, boundVariables: { color: { type: "VARIABLE_ALIAS", id: variable.id } } };
+    },
+  };
 
   createTextStyle = () => {
     const style = new FakeTextStyle(this, `S:${String(this.#nextId++)}`);
@@ -249,7 +275,7 @@ export class FakeFigma {
 }
 
 const PAINT_KEYS: Record<string, readonly string[]> = {
-  SOLID: ["type", "color", "opacity", "visible", "blendMode"],
+  SOLID: ["type", "color", "opacity", "visible", "blendMode", "boundVariables"],
   GRADIENT_LINEAR: [
     "type",
     "gradientTransform",
@@ -725,6 +751,33 @@ export class FakeNode {
 }
 
 /** Install a fresh fake as the global `figma` and return it. */
+export class FakeVariableCollection {
+  readonly defaultModeId = "M:1";
+  constructor(
+    readonly id: string,
+    readonly name: string,
+  ) {}
+}
+
+export class FakeVariable {
+  readonly valuesByMode: Record<string, unknown> = {};
+  readonly variableCollectionId: string;
+  constructor(
+    readonly id: string,
+    readonly name: string,
+    collection: FakeVariableCollection,
+    readonly resolvedType: string,
+  ) {
+    this.variableCollectionId = collection.id;
+  }
+
+  setValueForMode(mode: string, value: { r: number; g: number; b: number }): void {
+    for (const c of [value.r, value.g, value.b])
+      if (!(c >= 0 && c <= 1)) fail("setValueForMode: colour channels must be in [0, 1]");
+    this.valuesByMode[mode] = value;
+  }
+}
+
 /** A local text style; its font must be loaded before it is set, as in Figma. */
 export class FakeTextStyle {
   name = "";

@@ -2,6 +2,7 @@
  * Scene paints → Figma paints.
  */
 import type { Paint as ScenePaint, Stroke as SceneStroke } from "@figbridge/scene";
+import type { ColorVariables } from "./color-variables.js";
 import { hexToRgb, linearGradientTransform } from "./geometry.js";
 
 /** Resolves a Scene blob reference to a Figma image hash (uploading the bytes once). */
@@ -9,10 +10,22 @@ export type ImageResolver = (blob: string) => Promise<string>;
 
 const SCALE_MODE = { fill: "FILL", fit: "FIT", crop: "CROP", tile: "TILE" } as const;
 
-export async function toFigmaPaint(paint: ScenePaint, images: ImageResolver): Promise<Paint> {
+export async function toFigmaPaint(
+  paint: ScenePaint,
+  images: ImageResolver,
+  variables?: ColorVariables,
+): Promise<Paint> {
   switch (paint.type) {
-    case "solid":
-      return { type: "SOLID", color: hexToRgb(paint.color), opacity: paint.opacity };
+    case "solid": {
+      const solid: SolidPaint = {
+        type: "SOLID",
+        color: hexToRgb(paint.color),
+        opacity: paint.opacity,
+      };
+      return paint.variable === undefined || variables === undefined
+        ? solid
+        : variables.bind(solid, paint.variable);
+    }
     case "linear-gradient":
       return {
         type: "GRADIENT_LINEAR",
@@ -70,8 +83,9 @@ export async function toFigmaPaint(paint: ScenePaint, images: ImageResolver): Pr
 export function toFigmaPaints(
   paints: readonly ScenePaint[],
   images: ImageResolver,
+  variables?: ColorVariables,
 ): Promise<Paint[]> {
-  return Promise.all(paints.map((paint) => toFigmaPaint(paint, images)));
+  return Promise.all(paints.map((paint) => toFigmaPaint(paint, images, variables)));
 }
 
 const STROKE_ALIGN = { inside: "INSIDE", center: "CENTER", outside: "OUTSIDE" } as const;
@@ -86,6 +100,7 @@ export async function applyStrokes(
   node: GeometryMixin & MinimalStrokesMixin,
   strokes: readonly SceneStroke[],
   images: ImageResolver,
+  variables?: ColorVariables,
 ): Promise<void> {
   const [first] = strokes;
   if (first === undefined) {
@@ -96,6 +111,7 @@ export async function applyStrokes(
   node.strokes = await toFigmaPaints(
     strokes.map((stroke) => stroke.paint),
     images,
+    variables,
   );
   node.strokeWeight = first.weight;
   node.strokeAlign = STROKE_ALIGN[first.align];

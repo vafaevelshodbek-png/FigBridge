@@ -7,6 +7,7 @@
  * checked against PowerPoint renders of the same slides.
  */
 
+import type { SolidPaint } from "@figbridge/scene";
 import { DEGREE, PERCENT } from "./units.js";
 import { attr, num, type XmlElement } from "./xml.js";
 
@@ -16,6 +17,37 @@ export interface Rgba {
   color: string;
   /** Opacity in [0, 1]. */
   alpha: number;
+  /** Theme slot (`accent1`, `dk1`, …) when the colour is exactly that theme colour. */
+  slot?: string;
+}
+
+/** The twelve colours of a DrawingML theme. */
+export const THEME_SLOTS = [
+  "dk1",
+  "lt1",
+  "dk2",
+  "lt2",
+  "accent1",
+  "accent2",
+  "accent3",
+  "accent4",
+  "accent5",
+  "accent6",
+  "hlink",
+  "folHlink",
+] as const;
+
+/**
+ * A solid Scene paint for a resolved colour; theme colours keep their slot so the plugin
+ * can bind them to a variable.
+ */
+export function solidPaint(c: Rgba): SolidPaint {
+  return {
+    type: "solid",
+    color: c.color,
+    opacity: c.alpha,
+    ...(c.slot === undefined ? {} : { variable: c.slot }),
+  };
 }
 
 /** Everything needed to resolve scheme colours on one slide. */
@@ -66,13 +98,20 @@ export function resolveColor(
   if (el === undefined) return undefined;
   let rgb: [number, number, number];
   let alpha = 1;
+  let slot: string | undefined;
   switch (el.name) {
     case "schemeClr": {
       const value = attr(el, "val") ?? "tx1";
       if (value === "phClr" && placeholder !== undefined) {
         rgb = hexToRgb(placeholder.color);
         alpha = placeholder.alpha;
-      } else rgb = hexToRgb(schemeColor(ctx, value));
+        slot = placeholder.slot;
+      } else {
+        rgb = hexToRgb(schemeColor(ctx, value));
+        const mapped = ctx.map[value] ?? value;
+        if ((THEME_SLOTS as readonly string[]).includes(mapped) && ctx.scheme.has(mapped))
+          slot = mapped;
+      }
       break;
     }
     case "sysClr":
@@ -98,7 +137,11 @@ export function resolveColor(
     default:
       rgb = hexToRgb(attr(el, "val") ?? "000000");
   }
-  return applyTransforms(rgb, alpha, el.children);
+  const result = applyTransforms(rgb, alpha, el.children);
+  // Only opacity may change: lumMod, tint and the like make a colour of their own.
+  return slot !== undefined && el.children.every((t) => t.name === "alpha")
+    ? { ...result, slot }
+    : result;
 }
 
 /** Apply DrawingML colour transforms in document order. Exported for tests. */

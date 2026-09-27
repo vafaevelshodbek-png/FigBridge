@@ -3,7 +3,7 @@
  * tick labels in the axis number format, and major gridlines.
  */
 import type { Paint, SceneNode } from "@figbridge/scene";
-import { resolveColor } from "../color.js";
+import { resolveColor, solidPaint } from "../color.js";
 import { ptToPx, type SlideContext } from "../context.js";
 import { attr, child, find, num, type XmlElement } from "../xml.js";
 import { LABEL_ADVANCE } from "./layout.js";
@@ -118,8 +118,7 @@ export function valueAxis(
     if (grid === undefined) return [];
     const ln = find(child(grid, "spPr"), "ln");
     const color = resolveColor(child(ln, "solidFill"), ctx.colors);
-    const paint: Paint =
-      color === undefined ? GRIDLINE : { type: "solid", color: color.color, opacity: color.alpha };
+    const paint: Paint = color === undefined ? GRIDLINE : solidPaint(color);
     const weight = Math.max(
       0.5,
       ln === undefined ? ptToPx(ctx, GRIDLINE_PT) : num(ln, "w", 9525) * ctx.scale,

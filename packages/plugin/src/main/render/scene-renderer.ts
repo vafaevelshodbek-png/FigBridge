@@ -10,6 +10,7 @@
  */
 import type { SceneNode as SceneNodeIR, Slide } from "@figbridge/scene";
 import { pathBounds } from "@figbridge/scene/path";
+import { ColorVariables } from "./color-variables.js";
 import type { FontLoader } from "./fonts.js";
 import {
   needsMatrix,
@@ -37,6 +38,7 @@ const YIELD_EVERY = 25;
 export class SceneRenderer {
   #count = 0;
   #links: StyleLinks | undefined;
+  #variables: ColorVariables | undefined;
 
   constructor(private readonly ctx: RenderContext) {}
 
@@ -58,7 +60,11 @@ export class SceneRenderer {
     frame.x = x;
     frame.y = y;
     frame.clipsContent = true;
-    frame.fills = await toFigmaPaints(slide.background, this.ctx.images);
+    this.#variables =
+      slide.colorVariables === undefined
+        ? undefined
+        : new ColorVariables(slide.colorVariables, this.ctx.warnings);
+    frame.fills = await toFigmaPaints(slide.background, this.ctx.images, this.#variables);
     const defs = slide.textStyles ?? [];
     this.#links =
       defs.length === 0
@@ -169,26 +175,26 @@ export class SceneRenderer {
       case "rect": {
         const rect = attach(figma.createRectangle());
         rect.resize(safeSize(node.w), safeSize(node.h));
-        rect.fills = await toFigmaPaints(node.fills, images);
+        rect.fills = await toFigmaPaints(node.fills, images, this.#variables);
         setRadii(rect, node.radii);
-        await applyStrokes(rect, node.strokes, images);
+        await applyStrokes(rect, node.strokes, images, this.#variables);
         place(rect, node);
         return rect;
       }
       case "ellipse": {
         const ellipse = attach(figma.createEllipse());
         ellipse.resize(safeSize(node.w), safeSize(node.h));
-        ellipse.fills = await toFigmaPaints(node.fills, images);
-        await applyStrokes(ellipse, node.strokes, images);
+        ellipse.fills = await toFigmaPaints(node.fills, images, this.#variables);
+        await applyStrokes(ellipse, node.strokes, images, this.#variables);
         place(ellipse, node);
         return ellipse;
       }
       case "image": {
         const rect = attach(figma.createRectangle());
         rect.resize(safeSize(node.w), safeSize(node.h));
-        rect.fills = await toFigmaPaints([node.image], images);
+        rect.fills = await toFigmaPaints([node.image], images, this.#variables);
         setRadii(rect, node.radii);
-        await applyStrokes(rect, node.strokes, images);
+        await applyStrokes(rect, node.strokes, images, this.#variables);
         place(rect, node);
         return rect;
       }
@@ -198,8 +204,8 @@ export class SceneRenderer {
           windingRule: path.fillRule === "evenodd" ? "EVENODD" : "NONZERO",
           data: path.d,
         }));
-        vector.fills = await toFigmaPaints(node.fills, images);
-        await applyStrokes(vector, node.strokes, images);
+        vector.fills = await toFigmaPaints(node.fills, images, this.#variables);
+        await applyStrokes(vector, node.strokes, images, this.#variables);
         // Figma moves path data so its bounds start at the node's origin: shift the node by
         // the same amount, in local coordinates so rotation still pivots on the Scene box.
         const offset = vectorOffset(node.paths);
@@ -208,7 +214,7 @@ export class SceneRenderer {
       }
       case "text": {
         const text = attach(figma.createText());
-        await writeText(text, node, this.ctx.fonts, this.#links);
+        await writeText(text, node, this.ctx.fonts, this.#links, this.#variables);
         if (node.sizing === "fixed") text.resize(safeSize(node.w), safeSize(node.h));
         else if (node.sizing === "height") text.resize(safeSize(node.w), text.height);
         this.#checkOverflow(text, node);

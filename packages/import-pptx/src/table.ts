@@ -2,7 +2,7 @@
  * DrawingML tables → a group per cell: background rect, border lines, text.
  */
 import type { Paint, SceneNode } from "@figbridge/scene";
-import { resolveColor } from "./color.js";
+import { resolveColor, solidPaint } from "./color.js";
 import { round, type SlideContext } from "./context.js";
 import { fillElement, paintsOf } from "./fill.js";
 import { cellStyle, findTableStyle, tableFlags } from "./table-styles.js";
@@ -113,9 +113,7 @@ function buildCell(
           flipH: false,
           flipV: false,
         };
-    parts.push(
-      rect(ctx, "border", edge, [{ type: "solid", color: color.color, opacity: color.alpha }]),
-    );
+    parts.push(rect(ctx, "border", edge, [solidPaint(color)]));
   }
   const text = textNode(
     ctx,

@@ -27,6 +27,8 @@ export const SolidPaintSchema = z.object({
   type: z.literal("solid"),
   color: HexColor,
   opacity: Unit.default(1),
+  /** Theme colour this paint is (a name in the slide's `colorVariables`), to bind it to. */
+  variable: z.string().min(1).optional(),
 });
 
 export const GradientStopSchema = z.object({
@@ -72,6 +74,7 @@ export const PaintSchema = z.discriminatedUnion("type", [
   ImagePaintSchema,
 ]);
 export type Paint = z.infer<typeof PaintSchema>;
+export type SolidPaint = z.infer<typeof SolidPaintSchema>;
 
 export const StrokeSchema = z.object({
   paint: PaintSchema,
@@ -249,6 +252,13 @@ export const SlideSchema = z.object({
   height: z.number().positive(),
   background: z.array(PaintSchema).default([]),
   children: z.array(SceneNodeSchema).default([]),
+  /** Theme colours that paints on this slide refer to, as a Figma variable collection. */
+  colorVariables: z
+    .object({
+      collection: z.string().min(1),
+      colors: z.array(z.object({ name: z.string().min(1), color: HexColor })),
+    })
+    .optional(),
   /** Text styles that runs on this slide refer to by name. */
   textStyles: z.array(TextStyleSchema).optional(),
   /** Speaker notes, plain text with paragraphs separated by "\n". */

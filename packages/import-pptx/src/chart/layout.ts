@@ -2,7 +2,7 @@
  * Chart furniture around the plot: title, legend, category labels, axis line and the value axis maximum.
  */
 import type { Paint, SceneNode, TextNode } from "@figbridge/scene";
-import { resolveColor } from "../color.js";
+import { resolveColor, solidPaint } from "../color.js";
 import { ptToPx, type SlideContext } from "../context.js";
 import type { Box } from "../transform.js";
 import { AVERAGE_GLYPH_ADVANCE } from "../units.js";
@@ -140,8 +140,6 @@ export function axisLine(
   if (color === undefined) return [];
   const weight = Math.max(0.5, num(ln, "w", 9525) * ctx.scale);
   return [
-    rect(ctx, "axis", frame.x, plot.bottom - weight / 2, frame.w, weight, [
-      { type: "solid", color: color.color, opacity: color.alpha },
-    ]),
+    rect(ctx, "axis", frame.x, plot.bottom - weight / 2, frame.w, weight, [solidPaint(color)]),
   ];
 }

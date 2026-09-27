@@ -2,8 +2,9 @@
  * Scene text nodes → Figma TextNode with styled runs and paragraphs.
  */
 import type { TextNode as SceneText, TextStyle as SceneTextStyle } from "@figbridge/scene";
+import type { ColorVariables } from "./color-variables.js";
 import type { FontLoader } from "./fonts.js";
-import { hexToRgb } from "./geometry.js";
+import { toFigmaPaint } from "./paints.js";
 import { figmaLineHeight, type TextStyles } from "./text-styles.js";
 
 /** Text styles of the slide being rendered, and the file's local styles. */
@@ -37,6 +38,7 @@ export async function writeText(
   scene: SceneText,
   fonts: FontLoader,
   links?: StyleLinks,
+  variables?: ColorVariables,
 ): Promise<void> {
   const firstRun = scene.runs[0];
   if (firstRun === undefined) return;
@@ -55,9 +57,13 @@ export async function writeText(
     );
     text.setRangeFontSize(s, e, run.fontSize);
     if (run.fill.type === "solid") {
-      text.setRangeFills(s, e, [
-        { type: "SOLID", color: hexToRgb(run.fill.color), opacity: run.fill.opacity },
-      ]);
+      // Solid paints need no image resolver.
+      const fill = await toFigmaPaint(
+        run.fill,
+        () => Promise.reject(new Error("no image")),
+        variables,
+      );
+      text.setRangeFills(s, e, [fill]);
     }
     if (run.letterSpacing !== 0)
       text.setRangeLetterSpacing(s, e, { unit: "PIXELS", value: run.letterSpacing });

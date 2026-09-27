@@ -6,7 +6,7 @@
  * → paragraph `pPr` → run `rPr`.
  */
 import type { Paint, Paragraph, TextNode, TextRun, TextStyle } from "@figbridge/scene";
-import { resolveColor } from "./color.js";
+import { resolveColor, solidPaint } from "./color.js";
 import { ptToPx, resolveTypeface, round, type SlideContext } from "./context.js";
 import { parseFontStyle } from "./fonts.js";
 import {
@@ -105,7 +105,7 @@ function mergeRun(ctx: SlideContext, into: RunProps, el: XmlElement | undefined)
   const typeface = resolveTypeface(ctx.theme, attr(child(el, "latin"), "typeface"));
   if (typeface !== undefined) into.font = typeface;
   const color = resolveColor(child(el, "solidFill"), ctx.colors);
-  if (color !== undefined) into.fill = { type: "solid", color: color.color, opacity: color.alpha };
+  if (color !== undefined) into.fill = solidPaint(color);
 }
 
 /** List-style level elements (`lvl1pPr`…) along the inheritance chain, general first. */
@@ -196,10 +196,7 @@ export function textNode(
     const pPr = child(p, "pPr");
     const level = num(pPr, "lvl", 0) + 1;
     const para: ParagraphProps = {};
-    const base: RunProps =
-      styleColor === undefined
-        ? {}
-        : { fill: { type: "solid", color: styleColor.color, opacity: styleColor.alpha } };
+    const base: RunProps = styleColor === undefined ? {} : { fill: solidPaint(styleColor) };
     for (const lvl of levelChain(ctx, shape, ref, level)) {
       mergeParagraph(para, lvl);
       mergeRun(ctx, base, child(lvl, "defRPr"));

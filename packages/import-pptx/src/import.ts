@@ -6,7 +6,7 @@
  * the slide's own shape tree.
  */
 import type { Paint, Scene, Slide } from "@figbridge/scene";
-import { resolveColor } from "./color.js";
+import { resolveColor, THEME_SLOTS } from "./color.js";
 import { type BlobStore, type Part, readTheme, type SlideContext } from "./context.js";
 import { fillElement, paintsOf, solid, themeFill } from "./fill.js";
 import { sniffImage } from "./images.js";
@@ -241,13 +241,15 @@ function convertSlide(
   );
 
   const notes = speakerNotes(pkg, slideName);
+  const slideBackground = background(ctx, [slide, layout, master]);
   return {
     name: String(number).padStart(2, "0"),
     width: Math.round(cx * scale * 100) / 100,
     height: Math.round(cy * scale * 100) / 100,
-    background: background(ctx, [slide, layout, master]),
+    background: slideBackground,
     children,
     ...(ctx.textStyles.size === 0 ? {} : { textStyles: [...ctx.textStyles.values()] }),
+    ...colorVariables(ctx, [children, slideBackground]),
     ...(notes === undefined ? {} : { notes }),
   };
 }
@@ -290,4 +292,18 @@ function background(ctx: SlideContext, chain: (Part | undefined)[]): Paint[] {
     }
   }
   return [{ type: "solid", color: "#FFFFFF", opacity: 1 }];
+}
+
+/** The theme's colours as a variable collection, when any paint on the slide uses one. */
+function colorVariables(ctx: SlideContext, content: unknown): Pick<Slide, "colorVariables"> {
+  if (!JSON.stringify(content).includes('"variable":')) return {};
+  return {
+    colorVariables: {
+      collection: `${ctx.deckName}/Theme`,
+      colors: THEME_SLOTS.flatMap((name) => {
+        const hex = ctx.theme.scheme.get(name);
+        return hex === undefined ? [] : [{ name, color: `#${hex.toUpperCase()}` }];
+      }),
+    },
+  };
 }

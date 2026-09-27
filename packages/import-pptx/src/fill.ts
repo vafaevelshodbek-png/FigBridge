@@ -6,7 +6,7 @@
  * `undefined` means "not specified here" (inherit); `[]` means an explicit `noFill`.
  */
 import type { Paint, Stroke } from "@figbridge/scene";
-import { type Rgba, resolveColor } from "./color.js";
+import { type Rgba, resolveColor, solidPaint } from "./color.js";
 import type { SlideContext } from "./context.js";
 import { blipFillPaint, storeBlob } from "./images.js";
 import { EMU_PER_PATTERN_PIXEL, patternTile } from "./pattern.js";
@@ -83,7 +83,7 @@ const BLACK: Rgba = { color: "#000000", alpha: 1 };
 const WHITE: Rgba = { color: "#FFFFFF", alpha: 1 };
 
 export function solid(c: Rgba): Paint {
-  return { type: "solid", color: c.color, opacity: c.alpha };
+  return solidPaint(c);
 }
 
 /**
