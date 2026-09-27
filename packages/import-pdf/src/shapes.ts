@@ -127,7 +127,7 @@ export function toVector(parts: readonly PathPrimitive[], id: string): VectorNod
     opacity: 1,
     visible: true,
     paths: parts.map((p) => ({
-      d: toSvgPath(p.segments, origin),
+      d: toSvgPath(p.segments, origin, p.fill !== undefined),
       fillRule: p.fill?.evenOdd === true || subpathCount(p.segments) > 1 ? "evenodd" : "nonzero",
     })),
     fills: first.fill === undefined ? [] : [solid(first.fill.color, first.fill.alpha)],

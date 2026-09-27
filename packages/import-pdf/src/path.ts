@@ -194,15 +194,24 @@ function cornerOf(
 }
 
 /** SVG path data relative to `origin`, in the format Figma's vectorPaths accept. */
-export function toSvgPath(segments: readonly Segment[], origin: Point): string {
+export function toSvgPath(segments: readonly Segment[], origin: Point, close = false): string {
   const f = (n: number) => String(Math.round(n * 100) / 100);
   const p = ([x, y]: Point) => `${f(x - origin[0])} ${f(y - origin[1])}`;
   const out: string[] = [];
+  // A PDF fill closes every subpath implicitly; Figma keeps only the last open subpath of a
+  // vector (a filled logo came out as its last letter), so filled paths close them explicitly.
+  const closeOpen = () => {
+    const last = out[out.length - 1];
+    if (close && last !== undefined && last !== "Z" && !last.startsWith("M ")) out.push("Z");
+  };
   for (const s of segments) {
-    if (s.op === "M") out.push(`M ${p(s.to)}`);
-    else if (s.op === "L") out.push(`L ${p(s.to)}`);
+    if (s.op === "M") {
+      closeOpen();
+      out.push(`M ${p(s.to)}`);
+    } else if (s.op === "L") out.push(`L ${p(s.to)}`);
     else if (s.op === "C") out.push(`C ${p(s.c1)} ${p(s.c2)} ${p(s.to)}`);
     else out.push("Z");
   }
+  closeOpen();
   return out.join(" ");
 }

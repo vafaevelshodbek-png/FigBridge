@@ -5,7 +5,7 @@ import { parseFontName } from "../src/fonts.js";
 import { glyphText } from "../src/interpret.js";
 import { multiply } from "../src/matrix.js";
 import { type MeshIR, rasterizeMesh } from "../src/mesh.js";
-import { asRoundedRect, decodePath } from "../src/path.js";
+import { asRoundedRect, decodePath, toSvgPath } from "../src/path.js";
 import type { Glyph } from "../src/primitives.js";
 import {
   buildLines,
@@ -238,5 +238,22 @@ describe("mesh shading", () => {
 
   it("returns nothing for an empty mesh", () => {
     expect(rasterizeMesh(["Mesh", 4, [], [], 0, null, null, null], 1)).toBeUndefined();
+  });
+});
+
+describe("filled path data", () => {
+  it("closes every subpath of a filled path, so Figma keeps all of them", () => {
+    const segments = [
+      { op: "M" as const, to: [0, 0] as [number, number] },
+      { op: "L" as const, to: [10, 0] as [number, number] },
+      { op: "L" as const, to: [10, 10] as [number, number] },
+      { op: "M" as const, to: [20, 0] as [number, number] },
+      { op: "L" as const, to: [30, 0] as [number, number] },
+      { op: "L" as const, to: [30, 10] as [number, number] },
+    ];
+    expect(toSvgPath(segments, [0, 0], true)).toBe(
+      "M 0 0 L 10 0 L 10 10 Z M 20 0 L 30 0 L 30 10 Z",
+    );
+    expect(toSvgPath(segments, [0, 0])).toBe("M 0 0 L 10 0 L 10 10 M 20 0 L 30 0 L 30 10");
   });
 });
