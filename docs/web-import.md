@@ -27,9 +27,17 @@ name, active session and unrestricted plugin access before capture, then again
 before every screen write. Existing frames are retained. New screens are placed
 in a grid below existing content; `--x`, `--y`, `--columns` override placement.
 
-## Reproduce the README example
+## Reconstruct a screen from source code
 
-Pass the absolute `file:///` URL of the Fieldnote HTML file as the source, with `--viewport-only --width 820 --height 460`. The README preview pairs the Chromium reference PNG with a rasterized SVG export of the imported Figma frame. The frame contains native text and vector layers. [Fieldnote HTML](../examples/web-import/index.html)
+Start the frontend with its own development or preview server. Point FigBridge to the route you want to reconstruct. This works with a local project or a checkout of a public GitHub repository. FigBridge measures the running page, including its CSS, SVG and current UI state, then creates Figma layers from the rendered screen.
+
+```sh
+node packages/figbridge/dist/cli.mjs web import http://127.0.0.1:3000/ --file "Web to Figma" --session SESSION_ID --viewport-only --out out/local-app
+```
+
+For a standalone HTML file, use its absolute `file:///` URL. [Small HTML example](../examples/web-import/index.html)
+
+The README shows Tremor's MIT-licensed dashboard, running locally from its open source. Start the template's development server and capture `/overview`. For charts that render after navigation, add a `wait` step to the capture flow and import the state with the charts visible. [Tremor source at the demonstrated revision](https://github.com/tremorlabs/template-dashboard/tree/ac673531b124244b75fef5c750df1fa9ee783d4a) · [MIT license](https://github.com/tremorlabs/template-dashboard/blob/ac673531b124244b75fef5c750df1fa9ee783d4a/LICENSE.md)
 
 ## Browser states and known flows
 

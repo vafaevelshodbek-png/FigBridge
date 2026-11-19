@@ -1,20 +1,21 @@
 # FigBridge
 
-**Import websites, PDFs and PowerPoint decks into Figma as editable layers.**
+**Import websites, app screens, PDFs and PowerPoint decks into Figma as editable layers.**
 
 FigBridge connects a local CLI and MCP server to Figma Desktop. Bring source material into a design file, then inspect, edit, export or compare the resulting layers.
 
 [![CI](https://github.com/vafaevelshodbek-png/FigBridge/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vafaevelshodbek-png/FigBridge/actions/workflows/ci.yml)
 
-![Fieldnote research dashboard in Chromium and the matching frame exported from Figma](docs/assets/web-import.png)
+![Tremor dashboard in Chromium and the imported dashboard in Figma Desktop with a chart vector being edited](docs/assets/web-import.png)
 
-*The same screen captured in Chromium and exported from Figma after import. Its headings, metric values and chart paths are editable layers. [Example source](examples/web-import/index.html) · [Web import guide](docs/web-import.md)*
+*The open-source Tremor dashboard, rendered from a local checkout. In Figma Desktop, the cursor selects an anchor on the Queries chart while the vector controls and stroke properties are visible. [Tremor source](https://github.com/tremorlabs/template-dashboard/tree/ac673531b124244b75fef5c750df1fa9ee783d4a) · [Web import guide](docs/web-import.md)*
 
 ## What you can do
 
 | Workflow | Result |
 | --- | --- |
-| **Web screens** | Capture a viewport, a full page or a bounded set of UI states. Import frames, text, supported vectors and image layers. |
+| **Website capture** | Open live sites, follow links and explore UI states within set limits. Import pages, menus and other captured states as editable Figma layers. |
+| **Reconstruct screens from source code** | Run a frontend from source, such as an open GitHub repository, and turn the rendered screens into editable Figma layers. |
 | **PDF and PowerPoint** | Convert pages and slides into editable layers. PowerPoint tables and supported charts are rebuilt from native shapes, and Figma Slides imports preserve speaker notes. |
 | **Figma automation** | Inspect or update layers, export frames, compare pixels and read native comments from an MCP client or the CLI. |
 
