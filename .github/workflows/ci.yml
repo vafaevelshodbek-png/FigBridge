@@ -24,6 +24,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter figbridge exec playwright install --with-deps chromium
+        if: runner.os == 'Linux'
+      - run: pnpm --filter figbridge exec playwright install chromium
+        if: runner.os != 'Linux'
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm lint

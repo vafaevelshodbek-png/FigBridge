@@ -25,15 +25,16 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter figbridge exec playwright install --with-deps chromium
       - run: pnpm build
       - run: pnpm check
       - run: pnpm -F figbridge smoke
-      # Keeps a "Version packages" pull request open while changesets are pending; merging it
-      # bumps the version, writes CHANGELOG.md and — once NPM_TOKEN is set — publishes.
+      # Prepare and publish npm releases once the repository has a publishing token.
       - uses: changesets/action@v1
+        if: env.NPM_TOKEN != ''
         with:
           version: pnpm run version
-          publish: ${{ env.NPM_TOKEN != '' && 'pnpm run release' || '' }}
+          publish: pnpm run release
           title: "Version packages"
           commit: "chore: version packages"
         env:

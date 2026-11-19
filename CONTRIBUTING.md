@@ -41,10 +41,9 @@ A pull request that changes what users get (CLI, MCP tools, plugin, import resul
 changeset: `pnpm changeset`, pick `figbridge`, choose patch / minor / major and write a sentence
 for the changelog. See `.changeset/README.md`.
 
-Only `figbridge` is published; the `@figbridge/*` packages are private and bundled into it.
-The release workflow keeps a "Version packages" pull request open while changesets are pending.
-Merging it bumps the version and writes `CHANGELOG.md`; with an `NPM_TOKEN` secret set it also
-publishes to npm with provenance (which requires the repository to be public).
+The release publishes the `figbridge` package. The private `@figbridge/*` packages are bundled into it.
+With an `NPM_TOKEN` secret and permission for GitHub Actions to create pull requests, the release
+workflow opens a version PR for pending changesets. Merging that PR publishes to npm with provenance.
 
 Before a release, `pnpm build && pnpm -F figbridge smoke` installs the packed package into an
 empty directory with plain npm and checks the CLI, the bundled plugin and the MCP server — CI
