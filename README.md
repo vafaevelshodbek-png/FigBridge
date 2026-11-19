@@ -19,19 +19,15 @@ FigBridge connects a local CLI and MCP server to Figma Desktop. Bring source mat
 | **PDF and PowerPoint** | Convert pages and slides into editable layers. PowerPoint tables and supported charts are rebuilt from native shapes, and Figma Slides imports preserve speaker notes. |
 | **Figma automation** | Inspect or update layers, export frames, compare pixels and read native comments from an MCP client or the CLI. |
 
-## Quick start
+## Install with an assistant
 
-Install from source with Node.js 22+, pnpm 12.6.0 and Figma Desktop.
+Open a local session in **Codex** in the ChatGPT desktop app or **Code** in Claude Desktop. Send this message:
 
-```sh
-git clone https://github.com/vafaevelshodbek-png/FigBridge.git
-cd FigBridge
-pnpm install --frozen-lockfile
-pnpm build
-node packages/figbridge/dist/cli.mjs plugin
-```
+> Install FigBridge on this computer from https://github.com/vafaevelshodbek-png/FigBridge. Follow the assistant setup guide. Use local commands and leave the Figma clicks to me.
 
-Import the printed manifest in **Plugins → Development → Import plugin from manifest**. The setup guide takes you through pairing and a first web or deck import. [Pair the plugin and run an import](docs/first-import-check.md)
+Your assistant prepares FigBridge and gives you the plugin file path. In Figma Desktop, import that file and open FigBridge. Paste the pairing token once when your assistant has copied it to your clipboard.
+
+[Assistant setup guide](docs/first-import-check.md#assistant-setup) · [Manual setup for developers](docs/first-import-check.md#manual-setup)
 
 ## Explore the project
 
