@@ -8,7 +8,7 @@ FigBridge connects a local CLI and MCP server to Figma Desktop. Bring source mat
 
 ![Tremor dashboard in Chromium and the imported dashboard in Figma Desktop with a chart vector being edited](docs/assets/web-import.png)
 
-*The open-source Tremor dashboard, rendered from a local checkout. In Figma Desktop, the cursor selects an anchor on the Queries chart while the vector controls and stroke properties are visible. [Tremor source](https://github.com/tremorlabs/template-dashboard/tree/ac673531b124244b75fef5c750df1fa9ee783d4a) · [Web import guide](docs/web-import.md)*
+*The open-source Tremor dashboard, rendered from a local checkout. In Figma Desktop, the Queries series is selected in the layer tree and its vector anchor points are visible on the canvas. [Full-size comparison](docs/assets/web-import.png) · [Tremor source](https://github.com/tremorlabs/template-dashboard/tree/ac673531b124244b75fef5c750df1fa9ee783d4a) · [Web import guide](docs/web-import.md)*
 
 ## What you can do
 
