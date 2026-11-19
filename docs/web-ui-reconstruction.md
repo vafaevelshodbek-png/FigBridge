@@ -119,14 +119,14 @@ their correct global stacking cannot be inferred from DOM hierarchy alone.
 
 ## Verification and limits
 
-To run the synthetic browser regression cases, install Playwright and its Chromium
-in a directory of your choice, then pass that directory to:
+Run the Chromium regression cases from the repository root after installing the browser.
 
-```bash
-node packages/figbridge/scripts/capture-browser-check.mjs /path/to/playwright-project
+```sh
+pnpm --filter figbridge exec playwright install chromium
+pnpm --filter figbridge test:browser
 ```
 
-This check does not need Figma, an application, or credentials.
+The regression suite uses synthetic pages and runs without Figma or credentials.
 
 Always export the actual imported Figma frame and compare it to the corresponding
 browser screenshot. Successful RPCs and the reference Scene rasterizer do not

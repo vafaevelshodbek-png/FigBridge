@@ -26,11 +26,11 @@ MCP tool `figma_comments`:
 { "file": "https://www.figma.com/design/FILE_KEY/My-file", "status": "open", "limit": 25 }
 ```
 
-CLI (until npm release, replace `npx figbridge` with `node packages/figbridge/dist/cli.mjs`):
+Run the built CLI from the repository root.
 
 ```sh
-npx figbridge comments FILE_KEY --status open --limit 25
-npx figbridge comments FILE_KEY --node-id 12:34 --cursor 25
+node packages/figbridge/dist/cli.mjs comments FILE_KEY --status open --limit 25
+node packages/figbridge/dist/cli.mjs comments FILE_KEY --node-id 12:34 --cursor 25
 ```
 
 `file` accepts a file/branch key or official HTTPS file URL. A branch URL uses its branch

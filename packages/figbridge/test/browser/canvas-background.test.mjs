@@ -1,7 +1,7 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { chromium } from "playwright";
-import { captureDOM } from "../web/capture-dom.mjs";
+import { captureDOM } from "../../web/capture-dom.mjs";
 
 const browser = await chromium.launch();
 try {

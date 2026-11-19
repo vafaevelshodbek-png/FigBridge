@@ -1,50 +1,36 @@
 # Contributing
 
-Thanks for helping! A few conventions keep the codebase easy to review.
+Use Node.js 22+ and the pnpm version pinned in `package.json`. Start with the package map. [Architecture](docs/ARCHITECTURE.md)
 
-## Setup
+## Verify a change
 
-```bash
-pnpm install
+```sh
+pnpm install --frozen-lockfile
+pnpm --filter figbridge exec playwright install chromium
 pnpm build
-pnpm check        # typecheck + Biome + typescript-eslint (strictTypeChecked) + Vitest
+pnpm check
+pnpm --filter figbridge test:browser
+pnpm --filter figbridge smoke
 ```
 
-To try the plugin: Figma Desktop → *Plugins → Development → Import plugin from manifest…* → `packages/plugin/manifest.json`, then `node packages/figbridge/dist/cli.mjs start`.
+| Check | What it exercises |
+| --- | --- |
+| `pnpm check` | TypeScript, lint, unit tests, golden render comparisons and integration tests |
+| `pnpm test:coverage` | Vitest suite with the coverage thresholds used in CI |
+| `pnpm --filter figbridge test:browser` | Chromium regressions for browser capture, layout and state exploration |
+| `pnpm --filter figbridge smoke` | Tarball installation with npm, the bundled plugin and the CLI and MCP entry points |
 
-## Layout
+On Linux, pass `--with-deps` to Playwright's install command to install the browser's system dependencies. For an import through the actual Figma Plugin API, use a test file and follow the setup guide. [First import](docs/first-import-check.md)
 
-| Package | Purpose |
-|---|---|
-| `protocol` | wire envelope, method catalog, error codes |
-| `scene` | Scene IR (editable layer tree) + reference rasterizer |
-| `import-pdf` | PDF → Scene |
-| `plugin` | Figma plugin (UI transport + Scene renderer) |
-| `figbridge` | hub, MCP server, CLI |
+## Make a focused change
 
-## Conventions
+- Keep parser and renderer changes in their owning packages. Reuse the Scene schema and wire method catalog at package boundaries.
+- Cover importer behavior with a regression fixture or a checked before-and-after render. Keep only redistributable documents in the corpus. [Corpus and licenses](corpus/README.md)
+- After an intended visual change, run `UPDATE_GOLDEN=1 pnpm vitest run --project figbridge golden` in a POSIX shell and review the changed images in `corpus/golden/`. In PowerShell, set `$env:UPDATE_GOLDEN = '1'` before running `pnpm vitest run --project figbridge golden`.
+- Add a changeset with `pnpm changeset` for user-facing changes. Record changes to shared contracts in an architecture decision record. [Existing decisions](docs/adr)
 
-- TypeScript strict; no `any`, no non-null assertions, exhaustive switches.
-- Throw `BridgeError` with a code — never strings.
-- Heuristic thresholds are named constants with a comment explaining the evidence.
-- Every importer change needs a test; for visual changes attach before/after from `packages/import-pdf/scripts/corpus-sheet.mjs`.
-- Protocol or Scene schema changes need an ADR in `docs/adr/`.
-- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
-
-## Test documents
-
-Only permissively licensed documents go into `corpus/` (see its README).
-
-## Changes and releases
-
-A pull request that changes what users get (CLI, MCP tools, plugin, import results) adds a
-changeset: `pnpm changeset`, pick `figbridge`, choose patch / minor / major and write a sentence
-for the changelog. See `.changeset/README.md`.
+## Release
 
 The release publishes the `figbridge` package. The private `@figbridge/*` packages are bundled into it.
 With an `NPM_TOKEN` secret and permission for GitHub Actions to create pull requests, the release
 workflow opens a version PR for pending changesets. Merging that PR publishes to npm with provenance.
-
-Before a release, `pnpm build && pnpm -F figbridge smoke` installs the packed package into an
-empty directory with plain npm and checks the CLI, the bundled plugin and the MCP server — CI
-runs it on every push.

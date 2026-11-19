@@ -1,8 +1,8 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { chromium } from "playwright";
-import { capturePage } from "../web/browser-capture.mjs";
-import { captureDOM } from "../web/capture-dom.mjs";
+import { capturePage } from "../../web/browser-capture.mjs";
+import { captureDOM } from "../../web/capture-dom.mjs";
 
 let imageRequests = 0;
 const server = createServer((_req, res) => {

@@ -1,7 +1,7 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { chromium } from "playwright";
-import { explorePage } from "../web/explore.mjs";
+import { explorePage } from "../../web/explore.mjs";
 
 let submissions = 0;
 const server = createServer((req, res) => {

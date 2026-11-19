@@ -13,6 +13,7 @@ export default tseslint.config(
       "vitest.project.ts",
       "**/build.mjs",
       "**/scripts/**",
+      "packages/figbridge/test/browser/**/*.mjs",
       "packages/figbridge/web/**/*.mjs",
       "packages/figbridge/web/**/*.d.mts",
     ],

@@ -7,7 +7,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "lcov"],
-      include: ["packages/*/src/**"],
+      include: ["packages/*/src/**/*.{ts,mts,js,mjs}"],
       // A floor, not a goal: raise it when coverage grows, never lower it to merge.
       thresholds: { lines: 85, statements: 82, branches: 70, functions: 80 },
     },

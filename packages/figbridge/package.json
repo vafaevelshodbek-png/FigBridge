@@ -1,7 +1,7 @@
 {
   "name": "figbridge",
   "version": "0.0.0",
-  "description": "Let AI agents read and write Figma, and turn PDF/PPTX decks into editable Figma layers.",
+  "description": "Import websites, PDFs and PowerPoint decks into editable Figma layers. Local CLI and MCP server.",
   "keywords": [
     "figma",
     "mcp",
@@ -51,7 +51,8 @@
     "build": "tsdown && node scripts/bundle-plugin.mjs",
     "prepack": "node -e \"require('node:fs').copyFileSync('../../README.md','README.md')\"",
     "postpack": "node -e \"require('node:fs').rmSync('README.md',{force:true})\"",
-    "smoke": "node scripts/smoke-install.mjs"
+    "smoke": "node scripts/smoke-install.mjs",
+    "test:browser": "node --test --test-concurrency=1 \"test/browser/*.test.mjs\""
   },
   "dependencies": {
     "@modelcontextprotocol/node": "catalog:",

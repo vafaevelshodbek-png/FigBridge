@@ -1,7 +1,7 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { chromium } from "playwright";
-import { capturePage } from "../web/browser-capture.mjs";
+import { capturePage } from "../../web/browser-capture.mjs";
 
 const svg =
   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><circle cx="8" cy="8" r="7" fill="red"/></svg>';

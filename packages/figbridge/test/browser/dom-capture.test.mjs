@@ -1,15 +1,8 @@
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { resolve } from "node:path";
-import { captureDOM, prepareDOM } from "../web/capture-dom.mjs";
-import { normalizeCapture } from "../web/normalize-capture.mjs";
+import { chromium } from "playwright";
+import { captureDOM, prepareDOM } from "../../web/capture-dom.mjs";
+import { normalizeCapture } from "../../web/normalize-capture.mjs";
 
-// Resolve the caller's Playwright without adding a browser dependency to FigBridge.
-const playwrightRoot = process.argv[2];
-if (!playwrightRoot)
-  throw new Error("Usage: node capture-browser-check.mjs <directory with Playwright installed>");
-const require = createRequire(resolve(playwrightRoot, "package.json"));
-const { chromium } = require("playwright");
 const browser = await chromium.launch(
   process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
 );

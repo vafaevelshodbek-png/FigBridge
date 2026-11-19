@@ -39,7 +39,12 @@
   },
   "overrides": [
     {
-      "includes": ["**/scripts/**", "**/build.mjs", "packages/figbridge/web/import-capture.mjs"],
+      "includes": [
+        "**/scripts/**",
+        "packages/figbridge/test/browser/**",
+        "**/build.mjs",
+        "packages/figbridge/web/import-capture.mjs"
+      ],
       "linter": {
         "rules": {
           "suspicious": {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { captureDOM, prepareDOM } from "../web/capture-dom.mjs";
+import { captureDOM, prepareDOM } from "../../web/capture-dom.mjs";
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || chromium.executablePath(),
@@ -40,7 +40,7 @@ try {
 }
 
 // Adapter tests deliberately use real browser state, cookies and blob URLs.
-const { capturePage } = await import("../web/browser-capture.mjs").catch(() => ({
+const { capturePage } = await import("../../web/browser-capture.mjs").catch(() => ({
   capturePage: null,
 }));
 assert.equal(typeof capturePage, "function", "browser adapter must exist");

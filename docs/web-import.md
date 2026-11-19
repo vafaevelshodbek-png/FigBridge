@@ -4,28 +4,32 @@ The web workflow measures a running page and creates native Text, Frames,
 supported SVG vectors and image assets through the existing Scene renderer.
 It does not flatten a whole screen into an image.
 
-In a source build, use `node packages/figbridge/dist/cli.mjs` wherever the examples use `figbridge`. Install Chromium once after installing the package:
+Install Chromium after building FigBridge from source. [Build and pair FigBridge](first-import-check.md)
 
 ```sh
-npx playwright install chromium
+pnpm --filter figbridge exec playwright install chromium
 ```
 
 Capture a page without a Figma connection:
 
 ```sh
-figbridge web capture https://example.com --out ./captures/example
+node packages/figbridge/dist/cli.mjs web capture https://example.com --out out/example
 ```
 
 Import into an explicitly selected, connected file:
 
 ```sh
-figbridge web import https://example.com --file "Web to Figma" --session SESSION_ID --out ./captures/example-import
+node packages/figbridge/dist/cli.mjs web import https://example.com --file "Web to Figma" --session SESSION_ID --out out/example-import
 ```
 
 Use a new output directory for each job. The importer verifies the exact file
 name, active session and unrestricted plugin access before capture, then again
 before every screen write. Existing frames are retained. New screens are placed
 in a grid below existing content; `--x`, `--y`, `--columns` override placement.
+
+## Reproduce the README example
+
+Pass the absolute `file:///` URL of the Fieldnote HTML file as the source, with `--viewport-only --width 820 --height 460`. The README preview pairs the Chromium reference PNG with a rasterized SVG export of the imported Figma frame. The frame contains native text and vector layers. [Fieldnote HTML](../examples/web-import/index.html)
 
 ## Browser states and known flows
 
@@ -100,7 +104,7 @@ the reference PNG; a successful import is not proof of pixel equality.
 Saved captures can be imported offline:
 
 ```sh
-figbridge web import-capture ./captures/example/001.capture.json --file "Web to Figma" --session SESSION_ID --strict
+node packages/figbridge/dist/cli.mjs web import-capture out/example/001.capture.json --file "Web to Figma" --session SESSION_ID --strict
 ```
 
 MCP exposes `figma_capture_web` and `figma_import_web` with the same options
@@ -108,27 +112,9 @@ MCP exposes `figma_capture_web` and `figma_import_web` with the same options
 workflows are also exported as `captureWebsite` and `importWebsite`. Browser
 adapters are available at `figbridge/web/browser` and `figbridge/web/explore`.
 
-## Checks
+## Local output and retries
 
-```sh
-pnpm check
-node packages/figbridge/scripts/capture-browser-check.mjs packages/figbridge
-node packages/figbridge/scripts/browser-adapter-check.mjs
-node packages/figbridge/scripts/test-web-explore.mjs
-node packages/figbridge/scripts/test-viewport-clip.mjs
-node packages/figbridge/scripts/test-canvas-background.mjs
-node packages/figbridge/scripts/test-object-fit.mjs
-node packages/figbridge/scripts/test-browser-font-stack.mjs
-node packages/figbridge/scripts/pseudo-capture-check.mjs
-node packages/figbridge/scripts/browser-pseudo-adapter-check.mjs
-pnpm -F figbridge smoke
-```
-
-Capture output requires a new or empty directory. Each job exclusively reserves it
-before opening Chromium; existing files are preserved and concurrent jobs targeting
-the same directory are rejected. Failed jobs retain their partial artifacts. A
-process killed without cleanup can leave `.web-capture.lock`; inspect the directory
-and use a new empty destination for the next capture.
+Each job exclusively reserves a new or empty output directory before opening Chromium. Concurrent jobs targeting the same directory are rejected. Failed jobs retain their partial artifacts. A process killed without cleanup can leave `.web-capture.lock`. Inspect the directory and use a new destination for the next capture.
 
 Browser captures import materialized data-URL assets, either already inline in the
 capture or resolved from their capture cache.
@@ -136,3 +122,5 @@ A missing/rejected asset fails import even in non-strict mode, without retrying 
 original URL. Legacy standalone captures may fetch original URLs, with redirects
 rejected, a shared 15-second asset deadline, 8 MiB per asset and 32 MiB total
 streamed input limits.
+
+Run the Chromium regression suite with `pnpm --filter figbridge test:browser`. [Verification commands](../CONTRIBUTING.md)

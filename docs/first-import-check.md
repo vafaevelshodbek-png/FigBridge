@@ -1,44 +1,45 @@
-# First import: ten-minute walkthrough
+# Getting started
 
-This checks the README with someone who has never used figbridge. It is a manual
-acceptance test, not a substitute for automated tests.
+Install from source on Windows or macOS with **Node.js 22+**, **pnpm 12.6.0** and **Figma Desktop**. Use a Figma Design file for your first import.
 
-## Before the timer
+## Build and pair
 
-- Use Windows or macOS with Node 22 or newer and Figma Desktop installed.
-- Give the tester the README and an empty Figma Design file.
-- While the package is pre-release, provide a source checkout with dependencies
-  installed and `pnpm build` completed. Record this preparation separately: it does
-  not prove that the future npm installation works.
-- Use `corpus/poi_bar-chart.pptx`; the PDF alternative is
-  `corpus/beamer_metropolis_demo.pdf`. Both are in the repository's corpus root.
+From the repository root, install dependencies, build the packages and locate the plugin manifest.
 
-## Walkthrough
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+node packages/figbridge/dist/cli.mjs plugin
+```
 
-1. Start the timer. Follow the README to import the plugin manifest.
-2. Configure one supported AI client, using the source command during pre-release.
-3. Pair the plugin and leave its window open in Ask mode.
-4. Ask the agent to import slide 1 from the PPTX (or page 1 from the PDF).
-5. Approve the change in the plugin. Stop the timer when the frame appears.
-6. Select and edit text in the imported frame. Confirm it is an editable layer.
+1. In Figma Desktop, choose **Plugins → Development → Import plugin from manifest** and select the printed file.
+2. In one terminal, run `node packages/figbridge/dist/cli.mjs start` to start the local hub.
+3. In a second terminal, run `node packages/figbridge/dist/cli.mjs pair`. Open the development plugin in your Figma file and paste the token.
+4. Run `node packages/figbridge/dist/cli.mjs status`. Keep the plugin open and copy the session ID beside the intended file name.
 
-The author observes without giving hints. Record every question, error and detour.
-If the tester needs help, record it as a README defect even if the import succeeds.
+## Import a deck page
 
-## Record the result
+Leave the plugin in **Ask before changes** and approve the import in Figma. Replace `SESSION_ID` with the value from `status`.
 
-| Field | Result |
-|---|---|
-| Date and tester | |
-| OS, Node and Figma versions | |
-| Git commit or package version | |
-| AI client | |
-| Preparation time outside the timer | |
-| Time to first imported frame | |
-| Text edited successfully | |
-| Questions and errors, with the step | |
-| Passed within ten minutes without hints | |
+```sh
+node packages/figbridge/dist/cli.mjs import corpus/poi_bar-chart.pptx --pages 1 --session SESSION_ID
+```
 
-Do not mark the README acceptance complete until a new tester has performed it.
-After publishing, repeat from a clean machine with `npx figbridge@0.1.0` to cover
-installation as well as connection and import.
+To try PDF, replace the source with `corpus/beamer_metropolis_demo.pdf`. Select a text layer in the result and edit its content. [Deck import and format support](deck-import.md)
+
+## Import a website
+
+Install Chromium once. Choose **Unrestricted** for this plugin session, then use the file's exact name and the session ID from `status`.
+
+```sh
+pnpm --filter figbridge exec playwright install chromium
+node packages/figbridge/dist/cli.mjs web import https://example.com/ --file "My Figma file" --session SESSION_ID --viewport-only --out out/example
+```
+
+The output directory must be new or empty. It receives the reference PNG, capture JSON and a manifest with any reported losses. Open the imported frame in Figma to inspect its native layers. [Web capture options and fidelity limits](web-import.md)
+
+## Connect an agent or troubleshoot
+
+MCP is optional for the commands above. Configure your client to run the built CLI with the `mcp` subcommand. [MCP setup](tools.md)
+
+If the session does not appear, run `node packages/figbridge/dist/cli.mjs doctor`. Check that the development plugin is open in the intended Figma file and that it holds the token from this installation. For a website capture without a Figma session, use `web capture`.

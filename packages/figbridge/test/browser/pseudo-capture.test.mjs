@@ -1,11 +1,11 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { captureDOM } from "../web/capture-dom.mjs";
+import { captureDOM } from "../../web/capture-dom.mjs";
 import {
   clearPseudoHosts,
   markPseudoHosts,
   pseudoGeometryFromSnapshot,
-} from "../web/pseudo-capture.mjs";
+} from "../../web/pseudo-capture.mjs";
 
 const browser = await chromium.launch({ headless: true, channel: "chromium" });
 try {

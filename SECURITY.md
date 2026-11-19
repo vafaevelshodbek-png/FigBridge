@@ -1,19 +1,20 @@
 # Security
 
-## Model
+## Local access
 
-figbridge gives an AI agent edit access to the Figma files you open with the plugin. It is designed so that nothing else can:
+The hub listens on `127.0.0.1` and checks the request host and origin. The plugin handshake and protected API routes require a 128-bit pairing token. The liveness route is available locally without the token. The token is stored in `~/.figbridge/token` by default, with mode `0600` on macOS and Linux and user-profile permissions on Windows.
 
-- The hub binds to `127.0.0.1` only.
-- Requests whose `Host` header is not a loopback name are rejected (DNS rebinding).
-- Browser origins are rejected; only the plugin's opaque origin (`null`) or non-browser clients are accepted.
-- Every request and the plugin handshake require a 128-bit pairing token in `~/.figbridge/token` (mode 600 on macOS and Linux; on Windows the file is protected by your user profile's permissions only).
-- The plugin implements a fixed method catalog. There is no method that evaluates code.
-- Documents being imported are treated as untrusted input; parsing is bounded.
-- `--read-only` disables every method that modifies the document.
+The plugin runs a fixed set of document methods under your Figma account. Edits are visible to people who can view the file.
 
-Changes you make through figbridge are made with your Figma account and are visible to everyone viewing the file.
+| Plugin mode | What an agent can do |
+| --- | --- |
+| **Read only** | Inspect and export permitted document content |
+| **Ask before changes** | Request approval for each write |
+| **Auto** | Make routine changes and request approval for destructive operations |
+| **Unrestricted** | Write without individual prompts until the plugin reopens |
 
-## Reporting a vulnerability
+Run the MCP server with `--read-only` to remove mutating tools from that server. Website capture artifacts may contain visible page content and authenticated assets. Keep them and any browser storage-state files private when capturing authenticated pages. [Web import and authentication](docs/web-import.md)
 
-Please report privately via GitHub Security Advisories on this repository rather than a public issue. Include steps to reproduce and the version. We aim to respond within a week.
+## Report a vulnerability
+
+Use GitHub's private report form. Include the affected version or commit and a minimal reproduction. [Report a vulnerability](https://github.com/vafaevelshodbek-png/FigBridge/security/advisories/new)

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fieldnote | Research dashboard</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #edf2ef; color: #142d26; font-family: Arial, sans-serif; }
+      main { max-width: 820px; margin: 0 auto; padding: 32px; }
+      header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: bold; }
+      .period { margin: 0; color: #435951; font-size: 14px; }
+      h1 { margin: 0; font-size: 38px; line-height: 42px; }
+      .intro { margin: 7px 0 21px; color: #435951; font-size: 16px; line-height: 22px; }
+      dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 12px; }
+      .metric, section { background: #ffffff; border: 1px solid #d4e0d9; border-radius: 14px; }
+      .metric { padding: 14px 17px; }
+      dt { color: #435951; font-size: 14px; line-height: 19px; }
+      dd { margin: 4px 0 0; font-size: 29px; font-weight: bold; line-height: 34px; }
+      section { padding: 15px 17px; }
+      h2 { margin: 0 0 11px; font-size: 16px; line-height: 22px; }
+      .chart { display: block; width: 100%; height: 92px; }
+      @media (max-width: 540px) {
+        main { padding: 20px; }
+        header { margin-bottom: 22px; }
+        h1 { font-size: 30px; line-height: 36px; }
+        dl { gap: 6px; }
+        .metric { padding: 10px; }
+        dt { font-size: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="brand">
+          <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+            <rect width="30" height="30" rx="9" fill="#174b3e"/>
+            <path d="M8 21V9H22M12 21V13H21M16 21V17H21" fill="none" stroke="#d9f1cd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Fieldnote</span>
+        </div>
+        <p class="period">Nov 12–18</p>
+      </header>
+
+      <h1>Research activity</h1>
+      <p class="intro">Participant engagement in the weekly research study.</p>
+
+      <dl>
+        <div class="metric">
+          <dt>Responses</dt>
+          <dd>248</dd>
+        </div>
+        <div class="metric">
+          <dt>Interviews</dt>
+          <dd>16</dd>
+        </div>
+        <div class="metric">
+          <dt>Completion</dt>
+          <dd>86%</dd>
+        </div>
+      </dl>
+
+      <section aria-labelledby="chart-title">
+        <h2 id="chart-title">Responses over time</h2>
+        <svg class="chart" viewBox="0 0 680 92" preserveAspectRatio="none" role="img" aria-label="Daily responses trend upward, with a brief dip midweek.">
+          <path d="M0 20H680M0 52H680M0 84H680" fill="none" stroke="#e1ebe4"/>
+          <path d="M0 79L100 64L205 68L315 40L425 48L545 28L680 10V84H0Z" fill="#e0f3e5"/>
+          <path d="M0 79L100 64L205 68L315 40L425 48L545 28L680 10" fill="none" stroke="#258363" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </section>
+    </main>
+  </body>
+</html>
