@@ -1,5 +1,13 @@
 /** Prepare lazy content before measurement. Pass to page.evaluate, then call captureDOM. */
 export async function prepareDOM(options = {}) {
+  if (
+    options.maxScrollSteps !== undefined &&
+    (!Number.isSafeInteger(options.maxScrollSteps) ||
+      options.maxScrollSteps < 0 ||
+      options.maxScrollSteps > 1000)
+  )
+    throw new RangeError("maxScrollSteps must be an integer between 0 and 1000");
+
   const warnings = [],
     timeoutMs = options.timeoutMs || 10000;
   const root = document.querySelector(options.selector || "body");
@@ -30,7 +38,7 @@ export async function prepareDOM(options = {}) {
       image.loading = "eager";
     });
     if (options.fullPage) {
-      const limit = options.maxScrollSteps || 100;
+      const limit = options.maxScrollSteps ?? 100;
       for (let step = 0; step < limit; step++) {
         const top = Math.min(
           step * innerHeight,
@@ -125,22 +133,42 @@ export function captureDOM(options = {}) {
     };
   }
   function objectPaint(s, box, width, height) {
-    if (s.objectFit === "cover" && width && height) {
-      const scale = Math.max(box.width / width, box.height / height);
-      const w = Math.min(1, box.width / (width * scale)),
-        h = Math.min(1, box.height / (height * scale));
-      const positions = s.objectPosition.split(/\s+/);
-      const position = (value) =>
-        value?.endsWith("%")
-          ? number(value) / 100
-          : { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 }[value];
-      const x = position(positions[0]),
-        y = position(positions[1] || "50%");
-      if (x !== undefined && y !== undefined && x >= 0 && x <= 1 && y >= 0 && y <= 1)
-        return { scaleMode: "crop", crop: { x: (1 - w) * x, y: (1 - h) * y, w, h } };
-      warnings.push("CSS object-position with pixel offsets requires review");
+    const fit = s.objectFit || "fill";
+    // CSS fill stretches both axes; native FILL instead preserves aspect ratio.
+    if (fit === "fill") return { scaleMode: "crop", crop: { x: 0, y: 0, w: 1, h: 1 } };
+    const positions = s.objectPosition.split(/\s+/);
+    const position = (value) =>
+      value?.endsWith("%")
+        ? number(value) / 100
+        : { left: 0, top: 0, center: 0.5, right: 1, bottom: 1 }[value];
+    const x = position(positions[0]),
+      y = position(positions[1] || "50%");
+    const positioned = x !== undefined && y !== undefined && x >= 0 && x <= 1 && y >= 0 && y <= 1;
+    if (
+      fit === "contain" ||
+      (fit === "scale-down" &&
+        width &&
+        height &&
+        Math.min(box.width / width, box.height / height) < 1)
+    ) {
+      if (x !== 0.5 || y !== 0.5)
+        warnings.push("CSS object-position for contained image requires review");
+      return { scaleMode: "fit" };
     }
-    return { scaleMode: s.objectFit === "contain" ? "fit" : "fill" };
+    if (["cover", "none", "scale-down"].includes(fit) && width && height) {
+      const scale = fit === "cover" ? Math.max(box.width / width, box.height / height) : 1;
+      const w = box.width / (width * scale),
+        h = box.height / (height * scale);
+      if (w <= 1 && h <= 1 && positioned)
+        return { scaleMode: "crop", crop: { x: (1 - w) * x, y: (1 - h) * y, w, h } };
+      if (!positioned)
+        warnings.push(
+          "CSS object-position with pixel offsets or out-of-range percentages requires review",
+        );
+      if (w > 1 || h > 1)
+        warnings.push(`CSS object-fit: ${fit} with unscaled blank margins requires review`);
+    } else warnings.push(`CSS object-fit: ${fit} without intrinsic dimensions requires review`);
+    return { scaleMode: fit === "cover" ? "fill" : "fit" };
   }
   function parts(value) {
     const out = [];
@@ -496,7 +524,8 @@ export function captureDOM(options = {}) {
       range.setStart(text, i);
       range.setEnd(text, i + 1);
       const r = range.getBoundingClientRect();
-      if (!r.width || !r.height) continue;
+      if (!r.width || !r.height || !visibleRect(text.parentElement || text.getRootNode().host, r))
+        continue;
       if (!current || Math.abs(current.y - r.y) > 0.5) {
         current = { x: r.x, y: r.y, right: r.right, h: r.height, value: "" };
         lines.push(current);
@@ -554,7 +583,9 @@ export function captureDOM(options = {}) {
       .replace(/["']/g, "")
       .replace(/ Variable$/, "")
       .trim();
-    if (/^(ui-|system-ui|sans-serif|serif|monospace)/.test(family)) {
+    const browserAlias =
+      /^(ui-|system-ui$|-apple-system$|BlinkMacSystemFont$|sans-serif$|serif$|monospace$|SFMono)/;
+    if (browserAlias.test(family)) {
       const key = `${s.fontFamily} ${s.fontWeight} ${s.fontStyle}`;
       if (!fontFamilies.has(key)) {
         const ctx = document.createElement("canvas").getContext("2d"),
@@ -569,7 +600,7 @@ export function captureDOM(options = {}) {
           "Arial",
           "Times New Roman",
           "Courier New",
-        ].filter((f) => !/^(ui-|system-ui|sans-serif|serif|monospace|SFMono)/.test(f));
+        ].filter((f) => !browserAlias.test(f));
         for (const candidate of candidates) {
           ctx.font = prefix + JSON.stringify(candidate);
           if (samples.every((t, i) => Math.abs(ctx.measureText(t).width - expected[i]) < 0.001)) {
@@ -599,6 +630,131 @@ export function captureDOM(options = {}) {
                     : "Regular") + (s.fontStyle === "italic" ? " Italic" : ""),
     };
   }
+  // Keep slot nodes in the composed traversal: direct text inherits slot styles.
+  const composed = (el) =>
+    el.tagName === "SLOT"
+      ? el.assignedNodes().length
+        ? el.assignedNodes()
+        : [...el.childNodes]
+      : [...(el.shadowRoot ? el.shadowRoot.childNodes : el.childNodes)];
+  const viewportMode = options.fullPage === false && !options.selector;
+  const parentElement = (el) => el.parentElement || el.getRootNode()?.host;
+  const visibility = new WeakMap();
+  const styleCache = new WeakMap();
+  const styleOf = (el) => {
+    if (!styleCache.has(el)) styleCache.set(el, getComputedStyle(el));
+    return styleCache.get(el);
+  };
+  // These common accessibility clips have an exactly empty painted area. Other
+  // clip-path shapes stay visible and continue to report their rendering loss.
+  const emptyClip = (style, box) => {
+    const inset = style.clipPath?.match(/^inset\(([^()]+)\)$/);
+    if (inset) {
+      const values = inset[1].trim().split(/\s+/);
+      if (values.length <= 4 && values.every((v) => /^-?[\d.]+(?:px|%)?$/.test(v))) {
+        const [a, b = a, c = a, d = b] = values;
+        const px = (v, size) => number(v) * (v.endsWith("%") ? size / 100 : 1);
+        if (
+          px(a, box.height) + px(c, box.height) >= box.height ||
+          px(b, box.width) + px(d, box.width) >= box.width
+        )
+          return true;
+      }
+    }
+    const rect = style.clip?.match(/^rect\(([^)]+)\)$/);
+    if (rect && /^(absolute|fixed)$/.test(style.position)) {
+      const values = rect[1].split(/[ ,]+/);
+      if (values.length === 4 && values.every((v) => /^-?[\d.]+px$/.test(v)))
+        return number(values[2]) <= number(values[0]) || number(values[1]) <= number(values[3]);
+    }
+    return false;
+  };
+  const visibleRect = (el, rect) => {
+    let left = rect.x,
+      top = rect.y,
+      right = rect.x + rect.width,
+      bottom = rect.y + rect.height;
+    if (viewportMode) {
+      left = Math.max(left, 0);
+      top = Math.max(top, 0);
+      right = Math.min(right, innerWidth);
+      bottom = Math.min(bottom, innerHeight);
+    }
+    let escapesOverflow = styleOf(el).position === "fixed";
+    for (let ancestor = el; ancestor; ancestor = parentElement(ancestor)) {
+      const style = styleOf(ancestor),
+        box = ancestor.getBoundingClientRect();
+      if (style.display === "none" || number(style.opacity) === 0 || emptyClip(style, box))
+        return false;
+      if (ancestor !== el) {
+        // Viewport-fixed descendants escape ordinary overflow ancestors until a
+        // transform/filter/contain establishes their containing block.
+        if (
+          style.transform !== "none" ||
+          style.filter !== "none" ||
+          style.perspective !== "none" ||
+          /paint|layout|strict|content/.test(style.contain)
+        )
+          escapesOverflow = false;
+        if (viewportMode && !escapesOverflow) {
+          if (/(hidden|clip|scroll|auto)/.test(style.overflowX)) {
+            left = Math.max(left, box.x + ancestor.clientLeft);
+            right = Math.min(right, box.x + ancestor.clientLeft + ancestor.clientWidth);
+          }
+          if (/(hidden|clip|scroll|auto)/.test(style.overflowY)) {
+            top = Math.max(top, box.y + ancestor.clientTop);
+            bottom = Math.min(bottom, box.y + ancestor.clientTop + ancestor.clientHeight);
+          }
+        }
+      }
+      if (right <= left || bottom <= top) return false;
+    }
+    return right > left && bottom > top;
+  };
+  const overflowPaintVisible = (el, key) => {
+    const style = styleOf(el);
+    // Effects can paint beyond the border box. Retain their host conservatively;
+    // estimating blur/shadow bounds here would risk deleting visible pixels.
+    if (
+      style.boxShadow !== "none" ||
+      style.filter !== "none" ||
+      (style.outlineStyle !== "none" && number(style.outlineWidth) > 0)
+    )
+      return true;
+    return ["::before", "::after"].some((pseudo) => {
+      const measured = options.pseudoGeometry?.[key + pseudo];
+      if (!measured?.hasLayout) return false;
+      const [x, y, width, height] = measured.bounds;
+      return visibleRect(el, { x: x - scrollX, y: y - scrollY, width, height });
+    });
+  };
+  let inspected = 0;
+  const subtreeVisible = (el, key) => {
+    if (visibility.has(el)) return visibility.get(el);
+    if (++inspected > (options.maxNodes || 30000)) throw new Error("Capture node limit exceeded");
+    const style = styleOf(el),
+      box = el.getBoundingClientRect();
+    let visible = false;
+    if (
+      style.display !== "none" &&
+      style.visibility !== "hidden" &&
+      number(style.opacity) !== 0 &&
+      !emptyClip(style, box)
+    ) {
+      visible =
+        visibleRect(el, box) ||
+        overflowPaintVisible(el, key) ||
+        composed(el).some((child, i) => {
+          if (child.nodeType === 1) return subtreeVisible(child, `${key}/${i}`);
+          if (child.nodeType !== 3 || !child.nodeValue?.trim()) return false;
+          const range = document.createRange();
+          range.selectNodeContents(child);
+          return visibleRect(el, range.getBoundingClientRect());
+        });
+    }
+    visibility.set(el, visible);
+    return visible;
+  };
   let count = 0;
   function walk(
     el,
@@ -618,9 +774,15 @@ export function captureDOM(options = {}) {
       ["SCRIPT", "STYLE", "LINK", "META", "NOSCRIPT"].includes(el.tagName)
     )
       return [];
+    if (!subtreeVisible(el, key)) return [];
+    const ownVisible = visibleRect(el, b) || overflowPaintVisible(el, key);
     if (!b.width || !b.height) {
-      return [...el.children].flatMap((c, i) =>
-        walk(c, parentBox, `${key}/${i}`, inheritedFilter, parentFlipX, parentFlipY),
+      return composed(el).flatMap((c, i) =>
+        c.nodeType === 1
+          ? walk(c, parentBox, `${key}/${i}`, inheritedFilter, parentFlipX, parentFlipY)
+          : c.nodeType === 3
+            ? textNodes(c, s, parentBox, `${key}/text${i}`, parentFlipX, parentFlipY)
+            : [],
       );
     }
     const matrix = s.transform === "none" ? new DOMMatrix() : new DOMMatrix(s.transform);
@@ -630,7 +792,8 @@ export function captureDOM(options = {}) {
       effectiveFlipY = parentFlipY !== flipY;
     if (
       (Math.abs(matrix.b) > 0.00001 || Math.abs(matrix.c) > 0.00001) &&
-      el.tagName.toLowerCase() !== "svg"
+      el.tagName.toLowerCase() !== "svg" &&
+      ownVisible
     )
       warnings.push(`${key}: CSS rotation/skew requires visual review`);
     const base = {
@@ -667,9 +830,42 @@ export function captureDOM(options = {}) {
       flipX,
       flipY,
     };
+    if (!ownVisible) {
+      // Keep the original coordinate/stacking ancestor for visible overflow or
+      // fixed descendants, without capturing its offscreen paint or resources.
+      const filter = [
+        inheritedFilter,
+        s.filter === "none" ? "" : s.filter.replace(/blur\([^)]*\)/g, ""),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const children = composed(el).flatMap((child, i) =>
+        child.nodeType === 1
+          ? walk(child, b, `${key}/${i}`, filter, effectiveFlipX, effectiveFlipY)
+          : child.nodeType === 3
+            ? textNodes(child, s, b, `${key}/text${i}`, effectiveFlipX, effectiveFlipY)
+            : [],
+      );
+      return children.length
+        ? [
+            {
+              ...base,
+              type: "frame",
+              fills: [],
+              strokes: [],
+              effects: [],
+              radii: [0, 0, 0, 0],
+              clip: false,
+              children,
+            },
+          ]
+        : [];
+    }
     if (el.tagName.toLowerCase() === "svg")
       return [{ ...base, flipX: false, flipY: false, type: "svg", svg: svgMarkup(el) }];
-    const fills = paints(s, b.width, b.height, key);
+    if (s.clipPath && s.clipPath !== "none")
+      warnings.push(`${key}: unsupported CSS clip-path ${s.clipPath}`);
+    const fills = el === root && propagatedBodyBackground ? [] : paints(s, b.width, b.height, key);
     const radii = [
       s.borderTopLeftRadius,
       s.borderTopRightRadius,
@@ -699,7 +895,12 @@ export function captureDOM(options = {}) {
       overflow: ox && oy ? "BOTH" : ox ? "HORIZONTAL" : oy ? "VERTICAL" : "NONE",
       effects: shadows(s.boxShadow, key),
       children: [],
+      ...(el.tagName === "IFRAME"
+        ? { browserFrame: el.getAttribute(options.frameAttribute || "data-figbridge-frame") }
+        : {}),
     };
+    if (el.tagName === "IFRAME" && !options.frameAttribute)
+      warnings.push(`${key}: iframe contents require capturePage browser adapter`);
     const blur = s.filter.match(/blur\(([\d.]+)px\)/);
     if (blur) frame.effects.push({ type: "LAYER_BLUR", radius: number(blur[1]), visible: true });
     const backdrop = s.backdropFilter?.match(/blur\(([\d.]+)px\)/);
@@ -756,7 +957,12 @@ export function captureDOM(options = {}) {
       });
     }
     if (el instanceof HTMLVideoElement) {
-      if (el.poster && el.paused && el.currentTime === 0 && el.played.length === 0) {
+      if (
+        el.getAttribute("poster")?.trim() &&
+        el.paused &&
+        el.currentTime === 0 &&
+        el.played.length === 0
+      ) {
         const url = new URL(el.poster, location.href).href;
         assets.add(url);
         frame.children.push({
@@ -838,7 +1044,7 @@ export function captureDOM(options = {}) {
     if (s.maskImage && s.maskImage !== "none" && !frame.mask)
       warnings.push(`${key}: CSS mask ${s.maskImage.slice(0, 100)}`);
     // Negative z-index descendants paint before normal-flow content; positive stacking last.
-    const children = [...el.childNodes]
+    const children = composed(el)
       .map((n, i) => ({
         n,
         i,
@@ -854,7 +1060,9 @@ export function captureDOM(options = {}) {
         frame.children.push(...walk(n, b, `${key}/${i}`, filter, effectiveFlipX, effectiveFlipY));
     }
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      const value = el.value || el.placeholder;
+      const password = el instanceof HTMLInputElement && el.type === "password";
+      const value =
+        password && el.value ? "\u2022".repeat(el.value.length) : el.value || el.placeholder;
       if (value) {
         const style = el.value ? s : getComputedStyle(el, "::placeholder");
         const size = number(style.fontSize) || number(s.fontSize),
@@ -908,6 +1116,229 @@ export function captureDOM(options = {}) {
     for (const pseudo of ["::before", "::after"]) {
       const p = getComputedStyle(el, pseudo);
       if (p.content === "none" || p.content === "normal" || p.display === "none") continue;
+      if (p.visibility === "hidden" || p.visibility === "collapse" || number(p.opacity) === 0)
+        continue;
+      const measured = options.pseudoGeometry?.[key + pseudo];
+      const literal = /^(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')$/s.test(p.content)
+        ? p.content
+            .slice(1, -1)
+            .replace(/\\([0-9a-f]{1,6})\s?/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+            .replace(/\\(.)/gs, "$1")
+        : null;
+      const transparent = (value) => value === "transparent" || /rgba\([^)]*,\s*0\)$/.test(value);
+      const sides = ["Top", "Right", "Bottom", "Left"];
+      const borderWidths = sides.map((side) => number(p[`border${side}Width`]));
+      const borderColors = sides.map((side) => p[`border${side}Color`]);
+      const noOutline =
+        p.outlineStyle === "none" || number(p.outlineWidth) === 0 || transparent(p.outlineColor);
+      const simpleEffects =
+        noOutline &&
+        p.filter === "none" &&
+        p.boxShadow === "none" &&
+        (!p.maskImage || p.maskImage === "none") &&
+        p.clipPath === "none" &&
+        p.mixBlendMode === "normal" &&
+        (!p.backdropFilter || p.backdropFilter === "none");
+      const noPaint =
+        literal !== null &&
+        !literal.trim() &&
+        transparent(p.backgroundColor) &&
+        p.backgroundImage === "none" &&
+        (!p.maskImage || p.maskImage === "none") &&
+        p.boxShadow === "none" &&
+        noOutline &&
+        borderWidths.every((width, i) => !width || transparent(borderColors[i]));
+      // Whitespace layout effects are already present in measured sibling positions.
+      if (noPaint) continue;
+      if (measured?.hasLayout !== false && measured?.bounds) {
+        const [mx, my, mw, mh] = measured.bounds;
+        if (
+          mw > 0 &&
+          mh > 0 &&
+          !visibleRect(el, { x: mx - scrollX, y: my - scrollY, width: mw, height: mh })
+        )
+          continue;
+        if (mw > 0 && mh > 0 && p.position !== "fixed") {
+          const left = mx - scrollX,
+            top = my - scrollY;
+          if (
+            /hidden|clip|scroll|auto/.test(s.overflowX) &&
+            (left + mw <= b.x + el.clientLeft || left >= b.x + el.clientLeft + el.clientWidth)
+          )
+            continue;
+          if (
+            /hidden|clip|scroll|auto/.test(s.overflowY) &&
+            (top + mh <= b.y + el.clientTop || top >= b.y + el.clientTop + el.clientHeight)
+          )
+            continue;
+        }
+        const matrix = p.transform === "none" ? new DOMMatrix() : new DOMMatrix(p.transform);
+        const translationOnly =
+          matrix.is2D && matrix.a === 1 && matrix.d === 1 && matrix.b === 0 && matrix.c === 0;
+        const nativeBase = {
+          id: key + pseudo,
+          name: pseudo,
+          source: key + pseudo,
+          type: "svg",
+          cssZIndex: parseInt(p.zIndex, 10) || 0,
+          x: mx - scrollX - b.x,
+          y: my - scrollY - b.y,
+          w: mw,
+          h: mh,
+          opacity: number(p.opacity),
+        };
+        if (
+          translationOnly &&
+          mw > 0 &&
+          mh > 0 &&
+          literal?.trim() &&
+          !/[\r\n]/.test(literal) &&
+          transparent(p.backgroundColor) &&
+          p.backgroundImage === "none" &&
+          borderWidths.every((width) => width === 0) &&
+          simpleEffects &&
+          p.textTransform === "none"
+        ) {
+          const fontSize = number(p.fontSize),
+            lineHeight = number(p.lineHeight) || fontSize * 1.2;
+          frame.children.push({
+            ...nativeBase,
+            type: "text",
+            characters: literal,
+            x: nativeBase.x + number(p.paddingLeft),
+            y: nativeBase.y + number(p.paddingTop),
+            w: mw - number(p.paddingLeft) - number(p.paddingRight),
+            h: mh,
+            align: ["center", "right"].includes(p.textAlign) ? p.textAlign : "left",
+            runs: [
+              {
+                start: 0,
+                end: literal.length,
+                ...fontOf(p),
+                fontSize,
+                fill: color(p.color) || { type: "solid", color: "#000000", opacity: 1 },
+                letterSpacing: number(p.letterSpacing),
+                decoration: p.textDecorationLine.includes("underline")
+                  ? "underline"
+                  : p.textDecorationLine.includes("line-through")
+                    ? "strikethrough"
+                    : "none",
+              },
+            ],
+            paragraphs: [
+              { start: 0, end: literal.length, lineHeight: { unit: "pixels", value: lineHeight } },
+            ],
+            sizing: "width",
+          });
+          continue;
+        }
+        if (translationOnly && mw > 0 && mh > 0 && literal === "" && simpleEffects) {
+          const painted = sides
+            .map((_, i) => i)
+            .filter((i) => borderWidths[i] > 0 && !transparent(borderColors[i]));
+          const triangular =
+            painted.length === 1 &&
+            Math.abs(borderWidths[1] + borderWidths[3] - mw) < 0.1 &&
+            Math.abs(borderWidths[0] + borderWidths[2] - mh) < 0.1 &&
+            sides.every(
+              (side) => p[`border${side}Style`] === "solid" || p[`border${side}Style`] === "none",
+            ) &&
+            p.backgroundImage === "none" &&
+            transparent(p.backgroundColor) &&
+            p.boxShadow === "none";
+          if (triangular) {
+            const center = `${borderWidths[3]} ${borderWidths[0]}`;
+            const paths = [
+              `M0 0L${mw} 0L${center}Z`,
+              `M${mw} 0L${mw} ${mh}L${center}Z`,
+              `M${mw} ${mh}L0 ${mh}L${center}Z`,
+              `M0 ${mh}L0 0L${center}Z`,
+            ];
+            frame.children.push({
+              ...nativeBase,
+              svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${mw}" height="${mh}" viewBox="0 0 ${mw} ${mh}"><path fill="${borderColors[painted[0]]}" d="${paths[painted[0]]}"/></svg>`,
+            });
+            continue;
+          }
+          const urls = [
+            ...p.backgroundImage.matchAll(
+              /url\(\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|([^)]*))\s*\)/g,
+            ),
+          ].map((match) => match[1] ?? match[2] ?? match[3].trim());
+          let markup = measured.svg;
+          if (!markup && urls.length === 1 && urls[0].startsWith("data:image/svg+xml")) {
+            try {
+              const comma = urls[0].indexOf(",");
+              markup = urls[0].slice(0, comma).includes(";base64")
+                ? atob(urls[0].slice(comma + 1))
+                : decodeURIComponent(urls[0].slice(comma + 1));
+            } catch {
+              /* Unsupported encoding retains the warning. */
+            }
+          }
+          if (
+            markup &&
+            urls.length === 1 &&
+            p.backgroundRepeat === "no-repeat" &&
+            ["contain", "auto", "auto auto"].includes(p.backgroundSize) &&
+            borderWidths.every((width) => width === 0) &&
+            transparent(p.backgroundColor) &&
+            p.boxShadow === "none" &&
+            (!p.maskImage || p.maskImage === "none")
+          ) {
+            const parsed = new DOMParser().parseFromString(markup, "image/svg+xml"),
+              svg = parsed.documentElement;
+            const positions = {
+              "0% 0%": "xMinYMin",
+              "50% 50%": "xMidYMid",
+              "100% 0%": "xMaxYMin",
+              "0% 50%": "xMinYMid",
+              "100% 50%": "xMaxYMid",
+              "50% 0%": "xMidYMin",
+              "50% 100%": "xMidYMax",
+              "0% 100%": "xMinYMax",
+              "100% 100%": "xMaxYMax",
+            };
+            const intrinsicWidth = svg.getAttribute("width"),
+              intrinsicHeight = svg.getAttribute("height");
+            const autoSize =
+              p.backgroundSize === "contain" ||
+              (!intrinsicWidth && !intrinsicHeight) ||
+              (Math.abs(number(intrinsicWidth) - mw) < 0.1 &&
+                Math.abs(number(intrinsicHeight) - mh) < 0.1);
+            if (
+              svg.localName === "svg" &&
+              !parsed.querySelector("parsererror") &&
+              positions[p.backgroundPosition] &&
+              autoSize
+            ) {
+              if (
+                !svg.hasAttribute("viewBox") &&
+                /^\d+(?:\.\d+)?(?:px)?$/.test(intrinsicWidth ?? "") &&
+                /^\d+(?:\.\d+)?(?:px)?$/.test(intrinsicHeight ?? "")
+              )
+                svg.setAttribute(
+                  "viewBox",
+                  `0 0 ${number(intrinsicWidth)} ${number(intrinsicHeight)}`,
+                );
+              svg.setAttribute("color", p.color);
+              svg.setAttribute("preserveAspectRatio", `${positions[p.backgroundPosition]} meet`);
+              svg.setAttribute("x", "0");
+              svg.setAttribute("y", "0");
+              svg.setAttribute("width", String(mw));
+              svg.setAttribute("height", String(mh));
+              frame.children.push({
+                ...nativeBase,
+                svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${mw}" height="${mh}" viewBox="0 0 ${mw} ${mh}">${new XMLSerializer().serializeToString(svg)}</svg>`,
+              });
+              continue;
+            }
+            warnings.push(
+              `${key}${pseudo}: pseudo SVG background sizing or position requires review`,
+            );
+          }
+        }
+      }
       if (!["absolute", "fixed"].includes(p.position) || !['""', "''"].includes(p.content)) {
         warnings.push(`${key}${pseudo}: non-decorative pseudo element requires review`);
         continue;
@@ -1010,16 +1441,54 @@ export function captureDOM(options = {}) {
     : options.fullPage
       ? Math.max(document.documentElement.scrollHeight, innerHeight)
       : innerHeight;
+  const htmlStyle = getComputedStyle(document.documentElement);
+  const bodyStyle = getComputedStyle(document.body);
+  const htmlColor = color(htmlStyle.backgroundColor);
+  // Chromium's normal screenshot composites the page canvas over opaque white.
+  // With a transparent root and no background image, the body's solid background
+  // propagates to that canvas rather than being painted again in the body box.
+  const propagatedBodyBackground =
+    !options.selector &&
+    root === document.body &&
+    !htmlColor &&
+    htmlStyle.backgroundImage === "none" &&
+    bodyStyle.backgroundImage === "none";
+  const canvasColor =
+    htmlColor || (propagatedBodyBackground ? color(bodyStyle.backgroundColor) : null);
+  const canvasRgb = (canvasColor?.color || "#ffffff")
+    .match(/[a-f\d]{2}/gi)
+    .map((v) =>
+      Math.round(
+        parseInt(v, 16) * (canvasColor?.opacity ?? 1) + 255 * (1 - (canvasColor?.opacity ?? 1)),
+      ),
+    );
   const background = options.selector
     ? []
-    : [color(getComputedStyle(document.documentElement).backgroundColor)].filter(Boolean);
+    : [
+        {
+          type: "solid",
+          color: `#${canvasRgb.map((v) => v.toString(16).padStart(2, "0")).join("")}`,
+          opacity: 1,
+        },
+      ];
+  const capturedChildren = walk(root, origin, "root");
+  assets.clear();
+  const collectAssets = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "image" && node.url) assets.add(node.url);
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(collectAssets);
+      else if (value && typeof value === "object") collectAssets(value);
+    }
+  };
+  capturedChildren.forEach(collectAssets);
   return {
     slide: {
       name: options.name || document.title,
       width,
       height,
       background,
-      children: walk(root, origin, "root"),
+      children: capturedChildren,
     },
     warnings: [...new Set(warnings)],
     assets: [...assets],

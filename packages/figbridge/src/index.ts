@@ -20,3 +20,13 @@ export { createMcpServer, serveMcp } from "./mcp/server.js";
 export { TOOLS, type ToolDefinition } from "./mcp/tools.js";
 export { type Runtime, startRuntime } from "./runtime.js";
 export { VERSION } from "./version.js";
+export {
+  captureWebsite,
+  importWebsite,
+  type WebCaptureInput,
+  WebCaptureInputSchema,
+  type WebCaptureResult,
+  type WebImportInput,
+  WebImportInputSchema,
+  type WebState,
+} from "./web-import.js";

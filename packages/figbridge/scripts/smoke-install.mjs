@@ -66,7 +66,7 @@ try {
     `import { VERSION, TOOLS } from "figbridge"; process.stdout.write(JSON.stringify([VERSION, TOOLS.length]));`,
   );
   const api = run(process.execPath, ["api.mjs"], dir).trim();
-  check(api === JSON.stringify([version, 15]), `library import → ${api}`);
+  check(api === JSON.stringify([version, 17]), `library import → ${api}`);
 
   writeFileSync(
     join(dir, "web-api.mjs"),
@@ -74,6 +74,10 @@ try {
 import { captureDOM, prepareDOM } from 'figbridge/web/capture';
 import { importCapture } from 'figbridge/web/import';
 import { normalizeCapture } from 'figbridge/web/normalize';
+import { capturePage } from 'figbridge/web/browser';
+import { explorePage } from 'figbridge/web/explore';
+import { captureWebsite, importWebsite } from 'figbridge';
+if([capturePage,explorePage,captureWebsite,importWebsite].some(f=>typeof f!=='function'))throw Error('missing browser workflows');
 if(typeof captureDOM!=='function'||typeof prepareDOM!=='function'||typeof importCapture!=='function')throw Error('missing web API');
 if(normalizeCapture({type:'frame',mask:[]}).blendMode!=='NORMAL')throw Error('missing normalization');
 process.stdout.write('web API ready');`,
@@ -97,7 +101,7 @@ process.stdout.write('web API ready');`,
   );
   const { tools } = await client.listTools();
   check(
-    tools.length === 15 && tools.every((t) => t.name.startsWith("figma_")),
+    tools.length === 17 && tools.every((t) => t.name.startsWith("figma_")),
     `figbridge mcp serves ${tools.length} tools`,
   );
   const noSession = await client.callTool({ name: "figma_file_info", arguments: {} });

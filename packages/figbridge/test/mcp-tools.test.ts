@@ -143,14 +143,16 @@ describe.each([
     await server.close();
   });
 
-  it("lists 15 figma_ tools with honest annotations", async () => {
+  it("lists browser workflows with honest annotations", async () => {
     const { tools } = await mcp.listTools();
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(17);
     for (const t of tools) expect(t.name).toMatch(/^figma_/);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
     expect(byName["figma_outline"]).toMatchObject({ readOnlyHint: true, destructiveHint: false });
     expect(byName["figma_delete"]).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(byName["figma_comments"]).toMatchObject({ readOnlyHint: true, openWorldHint: true });
+    expect(byName["figma_import_web"]).toMatchObject({ readOnlyHint: false, openWorldHint: true });
+    expect(byName["figma_capture_web"]).toMatchObject({ readOnlyHint: false, openWorldHint: true });
   });
 
   it("validates comment reads without needing a plugin or accepting token arguments", async () => {
@@ -162,6 +164,14 @@ describe.each([
     expect(
       tools.find((t) => t.name === "figma_comments")?.inputSchema.properties,
     ).not.toHaveProperty("token");
+  });
+
+  it("rejects browser protocols and missing expected destinations before hub or browser work", async () => {
+    const capture = await tool("figma_capture_web", { url: "javascript:alert(1)", outDir: dir });
+    const imported = await tool("figma_import_web", { url: "https://example.com", outDir: dir });
+    expect(capture.isError).toBe(true);
+    expect(imported.isError).toBe(true);
+    expect(calls).toHaveLength(0);
   });
 
   it("reads REST comments through MCP without routing credentials to the hub or plugin", async () => {

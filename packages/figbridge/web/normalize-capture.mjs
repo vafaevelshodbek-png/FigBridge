@@ -30,6 +30,12 @@ function canLiftThrough(node) {
 /** Adapt browser paint semantics, also for captures recorded by older extractors. */
 export function normalizeCapture(node) {
   if (!node || typeof node !== "object") return node;
+  // Inline resource bytes belong to the image paint/cache. Native layer source
+  // metadata is bounded, so do not duplicate a potentially megabyte-sized URL.
+  if (typeof node.source === "string" && node.source.startsWith("data:")) {
+    const mime = node.source.slice(0, node.source.indexOf(",")).split(";")[0];
+    node.source = `${node.id || "inline"}/${mime}`.slice(0, 4096);
+  }
   if (node.cssStackingContext === true && node.children) {
     const children = [];
     for (const child of node.children) {

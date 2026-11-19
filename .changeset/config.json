@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "vafaevelshodbek-png/figma-bridge" }],
+  "changelog": ["@changesets/changelog-github", { "repo": "vafaevelshodbek-png/FigBridge" }],
   "commit": false,
   "access": "public",
   "baseBranch": "main",

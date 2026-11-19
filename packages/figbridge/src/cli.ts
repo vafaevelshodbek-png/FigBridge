@@ -15,11 +15,12 @@ import { existsSync } from "node:fs";
  *
  * stdout carries command output (and the MCP protocol for `mcp`); logs go to stderr.
  */
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
 import { Command, InvalidArgumentError, Option } from "commander";
+import { importCapture } from "../web/import-capture.mjs";
 import { RemoteHubClient } from "./client.js";
 import { CommentsInputSchema, FigmaCommentsClient } from "./comments.js";
 import { compareNode } from "./compare-node.js";
@@ -30,6 +31,12 @@ import { importDeck } from "./import-deck.js";
 import { serveMcp } from "./mcp/server.js";
 import { startRuntime } from "./runtime.js";
 import { VERSION } from "./version.js";
+import {
+  captureWebsite,
+  importWebsite,
+  WebCaptureInputSchema,
+  WebImportInputSchema,
+} from "./web-import.js";
 
 /** Exit codes: 0 ok, 1 figbridge error, 2 usage error. */
 const EXIT_ERROR = 1;
@@ -283,6 +290,111 @@ program
         },
       });
       out(JSON.stringify(result, null, 2));
+    },
+  );
+
+const web = program
+  .command("web")
+  .description("Capture browser screens and bounded flows as editable native Figma layers");
+function webOptions(command: Command): Command {
+  return command
+    .requiredOption("-o, --out <directory>", "local capture artifacts and manifest")
+    .option("--width <n>", "viewport width", finite, 1440)
+    .option("--height <n>", "viewport height", finite, 900)
+    .option("--viewport-only", "capture the viewport instead of the full document")
+    .option("--selector <css>", "capture one element")
+    .option("--name <name>", "screen name")
+    .option("--color-scheme <scheme>", "light | dark", "light")
+    .option("--locale <locale>", "browser locale")
+    .option("--channel <browser>", "chromium | chrome | msedge")
+    .option("--storage-state <path>", "explicit Playwright authentication state file")
+    .option("--cdp <url>", "attach to an explicitly supplied Chromium CDP endpoint")
+    .option("--explore", "discover bounded same-origin UI states")
+    .option("--max-states <n>", "maximum unique states", finite, 20)
+    .option("--max-depth <n>", "maximum action depth", finite, 3)
+    .option("--max-actions <n>", "maximum candidate attempts", finite, 80)
+    .option("--max-scroll-steps <n>", "bounded scrolling preparation and exploration", finite, 10)
+    .option("--timeout-ms <n>", "per browser operation timeout", finite, 30000)
+    .option("--max-duration-ms <n>", "maximum browser capture job duration", finite, 180000)
+    .option("--flow <json>", "explicit named recipes JSON file");
+}
+async function webInput(url: string, options: Record<string, unknown>) {
+  const recipes: unknown =
+    typeof options["flow"] === "string"
+      ? JSON.parse(await readFile(resolve(options["flow"]), "utf8"))
+      : undefined;
+  return {
+    ...options,
+    url,
+    outDir: options["out"],
+    cdpUrl: options["cdp"],
+    fullPage: options["viewportOnly"] !== true,
+    recipes,
+  };
+}
+async function webJob<T>(run: (signal: AbortSignal) => Promise<T>): Promise<void> {
+  const controller = new AbortController();
+  const cancel = () => {
+    controller.abort(new Error("Web job cancelled"));
+  };
+  process.once("SIGINT", cancel);
+  try {
+    out(JSON.stringify(await run(controller.signal), null, 2));
+  } finally {
+    process.off("SIGINT", cancel);
+  }
+}
+webOptions(
+  web
+    .command("capture")
+    .argument("<url>")
+    .description("Save native scene, resources, PNG and coverage without Figma"),
+).action(async (url: string, options: Record<string, unknown>) => {
+  const input = WebCaptureInputSchema.parse(await webInput(url, options));
+  await webJob((signal) => captureWebsite(input, { signal }));
+});
+webOptions(
+  web
+    .command("import")
+    .argument("<url>")
+    .description("Capture and import browser screens into the expected Figma file"),
+)
+  .requiredOption("--file <name>", "exact expected Figma file name")
+  .option("-s, --session <id>", "exact target session")
+  .option("--page-id <id>", "destination page")
+  .option("--strict", "reject every source or renderer loss")
+  .option("--columns <n>", "screen grid columns", finite, 3)
+  .option("--x <n>", "grid origin x", finite)
+  .option("--y <n>", "grid origin y (default below existing content)", finite)
+  .action(async (url: string, options: Record<string, unknown>) => {
+    const input = WebImportInputSchema.parse(await webInput(url, options));
+    await webJob((signal) => importWebsite(remote(), input, { signal }));
+  });
+web
+  .command("import-capture")
+  .description("Import a saved native browser capture without revisiting the site")
+  .argument("<path>")
+  .requiredOption("--file <name>", "exact expected Figma file name")
+  .option("-s, --session <id>", "target session")
+  .option("--page-id <id>", "destination page")
+  .option("--strict", "reject every source or renderer loss")
+  .option("--x <n>", "position x", finite, 0)
+  .option("--y <n>", "position y", finite, 0)
+  .action(
+    async (
+      path: string,
+      options: {
+        file: string;
+        session?: string;
+        pageId?: string;
+        strict?: boolean;
+        x: number;
+        y: number;
+      },
+    ) => {
+      await webJob((signal) =>
+        importCapture(resolve(path), { ...options, client: remote(), signal }),
+      );
     },
   );
 

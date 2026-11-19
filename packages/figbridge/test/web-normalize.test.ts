@@ -1,5 +1,33 @@
+import { SlideSchema } from "@figbridge/scene";
 import { expect, it } from "vitest";
 import { normalizeCapture } from "../web/normalize-capture.mjs";
+
+it("keeps inline image payload separate from bounded native source metadata", () => {
+  const payload = `data:image/png;base64,${"A".repeat(6000)}`;
+  const capture = {
+    name: "Inline resource",
+    width: 100,
+    height: 100,
+    children: [
+      {
+        type: "image",
+        id: "root/image",
+        name: "Inline image",
+        source: payload,
+        x: 0,
+        y: 0,
+        w: 100,
+        h: 100,
+        image: { type: "image", blob: `sha256:${"a".repeat(64)}`, scaleMode: "fill", opacity: 1 },
+      },
+    ],
+  };
+  const result = normalizeCapture(structuredClone(capture));
+  expect(SlideSchema.safeParse(capture).error?.issues[0]?.path.at(-1)).toBe("source");
+  expect(SlideSchema.safeParse(result).success).toBe(true);
+  expect(result.children[0]?.source).toBe("root/image/data:image/png");
+  expect(capture.children[0]?.source).toBe(payload);
+});
 
 interface CapturedNode {
   type?: string;

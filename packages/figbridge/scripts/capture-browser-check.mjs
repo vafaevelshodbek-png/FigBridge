@@ -10,7 +10,9 @@ if (!playwrightRoot)
   throw new Error("Usage: node capture-browser-check.mjs <directory with Playwright installed>");
 const require = createRequire(resolve(playwrightRoot, "package.json"));
 const { chromium } = require("playwright");
-const browser = await chromium.launch();
+const browser = await chromium.launch(
+  process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {},
+);
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.setContent(
@@ -67,6 +69,16 @@ try {
   await page.setContent('<video id="v" muted playsinline style="width:32px;height:24px"></video>');
   const emptyVideo = await page.evaluate(captureDOM);
   assert(emptyVideo.warnings.some((w) => w.includes("video has no decoded frame")));
+  await page.setContent(
+    '<base href="https://example.com/page"><video poster="" style="width:32px;height:24px"></video>',
+  );
+  const emptyPoster = await page.evaluate(captureDOM);
+  assert.equal(
+    emptyPoster.assets.length,
+    0,
+    "empty poster must not request the current HTML document",
+  );
+  await page.setContent('<video id="v" muted playsinline style="width:32px;height:24px"></video>');
   await page.evaluate(async () => {
     const c = document.createElement("canvas");
     c.width = 32;

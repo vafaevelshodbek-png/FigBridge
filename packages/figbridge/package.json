@@ -12,11 +12,11 @@
     "import",
     "figma-plugin"
   ],
-  "homepage": "https://github.com/vafaevelshodbek-png/figma-bridge#readme",
-  "bugs": "https://github.com/vafaevelshodbek-png/figma-bridge/issues",
+  "homepage": "https://github.com/vafaevelshodbek-png/FigBridge#readme",
+  "bugs": "https://github.com/vafaevelshodbek-png/FigBridge/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vafaevelshodbek-png/figma-bridge.git",
+    "url": "git+https://github.com/vafaevelshodbek-png/FigBridge.git",
     "directory": "packages/figbridge"
   },
   "license": "MIT",
@@ -29,6 +29,8 @@
     "figbridge": "./dist/cli.mjs"
   },
   "exports": {
+    "./web/browser": "./web/browser-capture.mjs",
+    "./web/explore": "./web/explore.mjs",
     "./web/capture": "./web/capture-dom.mjs",
     "./web/import": "./web/import-capture.mjs",
     "./web/normalize": "./web/normalize-capture.mjs",
@@ -60,6 +62,7 @@
     "fflate": "catalog:",
     "pdfjs-dist": "catalog:",
     "pino": "catalog:",
+    "playwright": "1.65.1",
     "ulid": "catalog:",
     "ws": "catalog:",
     "zod": "catalog:"
