@@ -9,22 +9,62 @@ import { capture } from "../undo.js";
 import { type Handler, PluginError, requireContainer, requireNode } from "./context.js";
 import { summarize } from "./summary.js";
 
+export const pageEnsure: Handler<"page.ensure"> = async ({ name, renameId, maxPages }) => {
+  let page = figma.root.children.find((p) => p.name === name);
+  if (page === undefined && renameId !== undefined) {
+    const candidate = await requireNode(renameId);
+    if (candidate.type !== "PAGE")
+      throw new PluginError("VALIDATION", "renameId must identify a page.");
+    page = candidate;
+    page.name = name;
+  }
+  if (page === undefined) {
+    if (figma.root.children.length >= maxPages)
+      throw new PluginError(
+        "VALIDATION",
+        `Page limit ${String(maxPages)} reached; specify renameId to reuse a page.`,
+      );
+    page = figma.createPage();
+    page.name = name;
+  }
+  await figma.setCurrentPageAsync(page);
+  figma.commitUndo();
+  return { id: page.id, name: page.name, current: true };
+};
+
 export const sceneRender: Handler<"scene.render"> = async (
-  { slide, x, y, parentId, replaceId },
+  { slide, x, y, parentId, replaceId, sourceKey, strict },
   ctx,
 ) => {
   let position = { x, y };
   let parent = await requireContainer(parentId);
+  let old: BaseNode | undefined;
+  if (sourceKey !== undefined) {
+    const matches = parent.children.filter(
+      (node) => node.getPluginData("figbridge.sourceKey") === sourceKey,
+    );
+    if (matches.length > 1)
+      throw new PluginError(
+        "VALIDATION",
+        "Multiple frames have this source key; inspect before re-import.",
+      );
+    const owned = matches[0];
+    if (owned !== undefined) {
+      if (replaceId !== undefined && replaceId !== owned.id)
+        throw new PluginError("VALIDATION", "replaceId disagrees with sourceKey.");
+      replaceId = owned.id;
+    }
+  }
   if (replaceId !== undefined) {
-    const old = await requireNode(replaceId);
+    old = await requireNode(replaceId);
     if ("x" in old && "y" in old) position = { x: old.x, y: old.y };
     if (old.parent !== null && "appendChild" in old.parent) parent = old.parent;
-    old.remove();
   }
   const warnings: string[] = [];
   const total = countNodes(slide.children);
   const renderer = new SceneRenderer({
     fonts: ctx.fonts,
+    yieldControl: () => ctx.ui.yieldControl(),
     images: ctx.images,
     checkCancelled: ctx.checkCancelled,
     warnings,
@@ -40,6 +80,15 @@ export const sceneRender: Handler<"scene.render"> = async (
     position = { x: 0, y: 0 };
   }
   const frame = await renderer.renderSlide(slide, parent, position.x, position.y);
+  if (strict && warnings.length > 0) {
+    frame.remove();
+    throw new PluginError(
+      "VALIDATION",
+      `Render rejected; previous frame preserved: ${warnings.join("; ")}`,
+    );
+  }
+  if (sourceKey !== undefined) frame.setPluginData("figbridge.sourceKey", sourceKey);
+  old?.remove();
   const placed = slideNode === undefined ? frame : fitIntoSlide(slideNode, frame);
   if (slide.notes !== undefined) await attachNotes(placed, slide.notes, ctx.fonts);
   figma.commitUndo();
@@ -62,6 +111,7 @@ export const nodesCreate: Handler<"nodes.create"> = async ({ nodes, parentId }, 
   const warnings: string[] = [];
   const renderer = new SceneRenderer({
     fonts: ctx.fonts,
+    yieldControl: () => ctx.ui.yieldControl(),
     images: ctx.images,
     checkCancelled: ctx.checkCancelled,
     warnings,
@@ -80,7 +130,12 @@ export const nodeUpdate: Handler<"node.update"> = async ({ nodeId, props }, ctx)
   const node = await requireNode(nodeId);
   if (!("x" in node)) throw new PluginError("VALIDATION", `Node ${nodeId} is not a layer.`);
   const layer = node;
+  if (props.effects !== undefined) {
+    if (!("effects" in layer) || !Array.isArray(layer.effects))
+      throw new PluginError("VALIDATION", `Node ${nodeId} has no effects.`);
+  }
   const before = capture(layer, props);
+  if (props.effects !== undefined && "effects" in layer) layer.effects = props.effects;
   if (props.name !== undefined) layer.name = props.name;
   if (props.text !== undefined) {
     if (layer.type !== "TEXT")
@@ -148,7 +203,8 @@ export const nodeClone: Handler<"node.clone"> = async ({ nodeId, parentId, x, y 
 
 function countNodes(nodes: readonly SceneNodeIR[]): number {
   return nodes.reduce(
-    (total, node) => total + 1 + (node.type === "group" ? countNodes(node.children) : 0),
+    (total, node) =>
+      total + 1 + (node.type === "group" || node.type === "frame" ? countNodes(node.children) : 0),
     0,
   );
 }

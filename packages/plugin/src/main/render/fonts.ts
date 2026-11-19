@@ -111,7 +111,10 @@ export class FontLoader {
     for (const candidate of fontCandidates(request)) {
       try {
         await this.load(candidate);
-        if (candidate.family !== request.family || candidate.style !== request.style) {
+        const alias =
+          candidate.family === request.family &&
+          [request.style, ...(STYLE_ALIASES[request.style] ?? [])].includes(candidate.style);
+        if (!alias) {
           this.substitutions.set(
             `${request.family} ${request.style}`,
             `${candidate.family} ${candidate.style}`,

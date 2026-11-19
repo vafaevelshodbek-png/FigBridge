@@ -9,6 +9,7 @@ import type { AccessMode, Request, Response } from "@figbridge/protocol";
 
 /** UI → main. */
 export type UiToMain =
+  | { kind: "yield.done"; ticket: number }
   | { kind: "request"; request: Request }
   | { kind: "cancel"; id: string }
   | { kind: "blob.got"; ticket: number; bytes: Uint8Array | null; error?: string }
@@ -23,6 +24,7 @@ export type UiToMain =
 
 /** Main → UI. */
 export type MainToUi =
+  | { kind: "yield"; ticket: number }
   | {
       kind: "hello-info";
       file: string;

@@ -26,6 +26,7 @@ export const APPROVAL_TIMEOUT_MS = 120_000;
 /** Methods that change the document (kept equal to `mutates` in METHODS by a test). */
 export const MUTATING_METHODS: ReadonlySet<string> = new Set([
   "scene.render",
+  "page.ensure",
   "nodes.create",
   "node.update",
   "node.delete",

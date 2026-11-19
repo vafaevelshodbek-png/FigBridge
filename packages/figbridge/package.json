@@ -29,6 +29,9 @@
     "figbridge": "./dist/cli.mjs"
   },
   "exports": {
+    "./web/capture": "./web/capture-dom.mjs",
+    "./web/import": "./web/import-capture.mjs",
+    "./web/normalize": "./web/normalize-capture.mjs",
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
@@ -36,6 +39,7 @@
   },
   "files": [
     "dist",
+    "web",
     "README.md"
   ],
   "engines": {

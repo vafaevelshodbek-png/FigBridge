@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { BridgeError, isMethodName, METHODS } from "@figbridge/protocol";
 import { Command, InvalidArgumentError, Option } from "commander";
 import { RemoteHubClient } from "./client.js";
+import { CommentsInputSchema, FigmaCommentsClient } from "./comments.js";
 import { compareNode } from "./compare-node.js";
 import { hubPort, loadOrCreateToken, pairingCode, stateDir } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
@@ -142,6 +143,29 @@ program
         `Stored in ${stateDir()}; keep it private — it grants edit access to open Figma files.\n`,
     );
   });
+
+program
+  .command("comments")
+  .description("Read native Figma comments via REST (requires a local FIGMA_ACCESS_TOKEN)")
+  .argument("<file>", "Figma file/branch key or HTTPS file URL")
+  .option("--node-id <id>", "exact anchor node id, including replies (not descendants)")
+  .option("--status <status>", "all | open | resolved", "all")
+  .option("--limit <n>", "maximum comments, 1–100 (default 50)", finite)
+  .option("--cursor <offset>", "nextCursor from the previous call with the same filters")
+  .action(
+    async (
+      file: string,
+      options: {
+        nodeId?: string;
+        status: string;
+        limit?: number;
+        cursor?: string;
+      },
+    ) => {
+      const input = CommentsInputSchema.parse({ file, ...options });
+      out(JSON.stringify(await new FigmaCommentsClient().list(input), null, 2));
+    },
+  );
 
 program
   .command("compare")

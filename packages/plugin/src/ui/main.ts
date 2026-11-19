@@ -219,6 +219,9 @@ window.onmessage = (event: MessageEvent<{ pluginMessage?: MainToUi }>) => {
   const message = event.data.pluginMessage;
   if (message === undefined || panel.handle(message)) return;
   switch (message.kind) {
+    case "yield":
+      toMain({ kind: "yield.done", ticket: message.ticket });
+      return;
     case "hello-info":
       info = {
         file: message.file,

@@ -12,6 +12,8 @@ export default tseslint.config(
       "vitest.project.ts",
       "**/build.mjs",
       "**/scripts/**",
+      "packages/figbridge/web/**/*.mjs",
+      "packages/figbridge/web/**/*.d.mts",
     ],
   },
   ...tseslint.configs.strictTypeChecked,

@@ -29,6 +29,7 @@ export interface RenderContext {
   /** Checked between nodes; throw to abort. */
   readonly checkCancelled: () => void;
   readonly onNode?: () => void;
+  readonly yieldControl?: () => Promise<void>;
   warnings: string[];
 }
 
@@ -55,26 +56,31 @@ export class SceneRenderer {
   ): Promise<FrameNode> {
     const frame = figma.createFrame();
     parent.appendChild(frame);
-    frame.name = slide.name;
-    frame.resize(slide.width, slide.height);
-    frame.x = x;
-    frame.y = y;
-    frame.clipsContent = true;
-    this.#variables =
-      slide.colorVariables === undefined
-        ? undefined
-        : new ColorVariables(slide.colorVariables, this.ctx.warnings);
-    frame.fills = await toFigmaPaints(slide.background, this.ctx.images, this.#variables);
-    const defs = slide.textStyles ?? [];
-    this.#links =
-      defs.length === 0
-        ? undefined
-        : {
-            styles: new TextStyles(this.ctx.fonts, this.ctx.warnings),
-            defs: new Map(defs.map((d) => [d.name, d])),
-          };
-    await this.renderChildren(slide.children, frame);
-    return frame;
+    try {
+      frame.name = slide.name;
+      frame.resize(slide.width, slide.height);
+      frame.x = x;
+      frame.y = y;
+      frame.clipsContent = true;
+      this.#variables =
+        slide.colorVariables === undefined
+          ? undefined
+          : new ColorVariables(slide.colorVariables, this.ctx.warnings);
+      frame.fills = await toFigmaPaints(slide.background, this.ctx.images, this.#variables);
+      const defs = slide.textStyles ?? [];
+      this.#links =
+        defs.length === 0
+          ? undefined
+          : {
+              styles: new TextStyles(this.ctx.fonts, this.ctx.warnings),
+              defs: new Map(defs.map((d) => [d.name, d])),
+            };
+      await this.renderChildren(slide.children, frame);
+      return frame;
+    } catch (error) {
+      if (!frame.removed) frame.remove();
+      throw error;
+    }
   }
 
   async renderChildren(
@@ -94,7 +100,10 @@ export class SceneRenderer {
     parent: BaseNode & ChildrenMixin,
   ): Promise<SceneNode | undefined> {
     this.ctx.checkCancelled();
-    if (++this.#count % YIELD_EVERY === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    if (++this.#count % YIELD_EVERY === 0) {
+      if (this.ctx.yieldControl) await this.ctx.yieldControl();
+      else await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     this.ctx.onNode?.();
 
     if (node.type === "group") {
@@ -116,11 +125,15 @@ export class SceneRenderer {
     try {
       const created = await this.#renderLeaf(node, parent, attached);
       created.name = node.name;
+      created.setPluginData("figbridge.sourceId", node.id);
+      if (node.source !== undefined) created.setPluginData("figbridge.source", node.source);
       if (node.opacity < 1 && "opacity" in created) created.opacity = node.opacity;
       if (!node.visible) created.visible = false;
+      if (node.type === "text" && node.effects !== undefined && "effects" in created)
+        created.effects = node.effects;
       return created;
     } catch (error) {
-      attached.node?.remove();
+      if (attached.node && !attached.node.removed) attached.node.remove();
       this.ctx.warnings.push(
         `${node.type} "${node.name}": ${error instanceof Error ? error.message : String(error)}`,
       );
@@ -172,6 +185,60 @@ export class SceneRenderer {
       return created;
     };
     switch (node.type) {
+      case "frame": {
+        const frame = attach(node.component ? figma.createComponent() : figma.createFrame());
+        frame.resize(safeSize(node.w), safeSize(node.h));
+        frame.fills =
+          node.mask === undefined ? await toFigmaPaints(node.fills, images, this.#variables) : [];
+        setRadii(frame, node.radii);
+        if (node.mask === undefined)
+          await applyStrokes(frame, node.strokes, images, this.#variables);
+        frame.clipsContent = node.clip;
+        frame.overflowDirection = node.overflow;
+        frame.effects = node.effects.map(
+          (effect): Effect => ("color" in effect ? effect : { ...effect, blurType: "NORMAL" }),
+        );
+        if (node.blendMode !== undefined) frame.blendMode = node.blendMode;
+        place(frame, node);
+        if (node.mask !== undefined) {
+          const mask = figma.createRectangle();
+          frame.appendChild(mask);
+          mask.resize(safeSize(node.w), safeSize(node.h));
+          mask.x = 0;
+          mask.y = 0;
+          mask.name = "CSS alpha mask";
+          mask.fills = await toFigmaPaints(node.mask, images, this.#variables);
+          mask.isMask = true;
+          mask.maskType = "ALPHA";
+          // A Figma child mask does not mask its parent's own fills/border. CSS
+          // masks cover those too, so paint them as the first masked child.
+          if (node.fills.length > 0 || node.strokes.length > 0) {
+            const background = figma.createRectangle();
+            frame.appendChild(background);
+            background.name = "CSS masked background";
+            background.resize(safeSize(node.w), safeSize(node.h));
+            background.x = 0;
+            background.y = 0;
+            background.fills = await toFigmaPaints(node.fills, images, this.#variables);
+            setRadii(background, node.radii);
+            await applyStrokes(background, node.strokes, images, this.#variables);
+          }
+        }
+        await this.renderChildren(node.children, frame);
+        if (node.mask !== undefined && frame.children.length > 1) {
+          const content = figma.group(frame.children.slice(1), frame);
+          content.name = "CSS masked contents";
+        }
+        return frame;
+      }
+      case "svg": {
+        const frame = attach(figma.createNodeFromSvg(node.svg));
+        frame.rescale(safeSize(node.w) / frame.width);
+        if (Math.abs(frame.height - node.h) > 0.01)
+          frame.resize(safeSize(node.w), safeSize(node.h));
+        place(frame, node);
+        return frame;
+      }
       case "rect": {
         const rect = attach(figma.createRectangle());
         rect.resize(safeSize(node.w), safeSize(node.h));
@@ -254,7 +321,10 @@ function vectorOffset(paths: readonly { d: string }[]): { x: number; y: number }
   return Number.isFinite(x) ? { x, y } : { x: 0, y: 0 };
 }
 
-function setRadii(rect: RectangleNode, radii: readonly [number, number, number, number]): void {
+function setRadii(
+  rect: RectangleNode | FrameNode | ComponentNode,
+  radii: readonly [number, number, number, number],
+): void {
   const [tl, tr, br, bl] = radii;
   if (tl === tr && tr === br && br === bl) {
     rect.cornerRadius = tl;

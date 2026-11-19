@@ -24,6 +24,13 @@ export function describe(node: BaseNode, depth: number): Record<string, unknown>
   if ("opacity" in node && node.opacity !== 1) out["opacity"] = node.opacity;
   if ("rotation" in node && node.rotation !== 0) out["rotation"] = round(node.rotation);
   if ("fills" in node) out["fills"] = plain(node.fills);
+  if ("effects" in node) out["effects"] = plain(node.effects);
+  if ("clipsContent" in node) out["clipsContent"] = node.clipsContent;
+  if ("overflowDirection" in node) out["overflowDirection"] = node.overflowDirection;
+  for (const key of ["figbridge.sourceId", "figbridge.source", "figbridge.sourceKey"]) {
+    const value = node.getPluginData(key);
+    if (value) out[key] = value;
+  }
   if ("strokes" in node && node.strokes.length > 0) {
     out["strokes"] = plain(node.strokes);
     out["strokeWeight"] = plain(node.strokeWeight);

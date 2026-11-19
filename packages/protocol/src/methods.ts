@@ -8,6 +8,7 @@
 import { SceneNodeSchema, SlideSchema } from "@figbridge/scene";
 import { z } from "zod";
 import { ACCESS_MODES } from "./access.js";
+import { EffectSchema } from "./effects.js";
 
 /** Figma node id, e.g. "12:34" (URL form "12-34" is normalized by the hub). */
 export const NodeIdSchema = z
@@ -64,6 +65,8 @@ export const METHODS = {
       // Optional: plugins before access modes do not report them.
       access: AccessModeSchema.optional(),
       paused: z.boolean().optional(),
+      pluginBuild: z.string().optional(),
+      capabilities: z.array(z.string()).optional(),
     }),
     mutates: false,
     timeoutMs: TIMEOUTS.read,
@@ -137,6 +140,7 @@ export const METHODS = {
       nodeId: NodeIdSchema,
       format: z.enum(["png", "jpg", "svg"]).default("png"),
       scale: z.number().min(0.05).max(4).default(1),
+      rasterTimeoutMs: z.number().int().min(100).max(60_000).optional(),
     }),
     result: z.object({
       blob: z.string(),
@@ -157,6 +161,8 @@ export const METHODS = {
       y: z.number(),
       parentId: NodeIdSchema.optional(),
       replaceId: NodeIdSchema.optional(),
+      sourceKey: z.string().min(1).max(512).optional(),
+      strict: z.boolean().default(false),
     }),
     result: z.object({
       frameId: NodeIdSchema,
@@ -171,6 +177,19 @@ export const METHODS = {
     summary: "Create Scene nodes inside a parent frame (or the current page).",
     params: z.object({ nodes: z.array(SceneNodeSchema).min(1), parentId: NodeIdSchema.optional() }),
     result: z.object({ ids: z.array(NodeIdSchema), warnings: z.array(z.string()) }),
+    mutates: true,
+    timeoutMs: TIMEOUTS.write,
+  },
+
+  "page.ensure": {
+    summary:
+      "Find a page by name, rename an explicitly identified page, or create within a page limit. Never deletes content.",
+    params: z.object({
+      name: z.string().min(1).max(256),
+      renameId: NodeIdSchema.optional(),
+      maxPages: z.number().int().min(1).max(100).default(3),
+    }),
+    result: Page,
     mutates: true,
     timeoutMs: TIMEOUTS.write,
   },
@@ -192,6 +211,7 @@ export const METHODS = {
           fill: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
           text: z.string(),
           cornerRadius: z.number().nonnegative(),
+          effects: z.array(EffectSchema).max(100),
         })
         .partial()
         .refine((props) => Object.keys(props).length > 0, "props must not be empty"),

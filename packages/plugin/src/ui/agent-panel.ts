@@ -82,6 +82,7 @@ export class AgentPanel {
         this.el.undo.disabled = !message.possible;
         return true;
       case "hello-info":
+      case "yield":
       case "response":
       case "progress":
       case "blob.get":

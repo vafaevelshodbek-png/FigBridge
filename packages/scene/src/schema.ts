@@ -104,7 +104,85 @@ const NodeBase = {
   flipY: z.boolean().default(false),
   opacity: Unit.default(1),
   visible: z.boolean().default(true),
+  source: z.string().max(4096).optional(),
 };
+
+const ShadowSchema = z.object({
+  type: z.enum(["DROP_SHADOW", "INNER_SHADOW"]),
+  color: z.object({ r: Unit, g: Unit, b: Unit, a: Unit }),
+  offset: z.object({ x: Finite, y: Finite }),
+  radius: NonNegative,
+  spread: Finite.default(0),
+  visible: z.boolean().default(true),
+  blendMode: z.literal("NORMAL").default("NORMAL"),
+});
+
+export const SvgNodeSchema = z.object({
+  ...NodeBase,
+  type: z.literal("svg"),
+  svg: z
+    .string()
+    .max(2_000_000)
+    .refine(
+      (s) =>
+        /^\s*<svg[\s>]/i.test(s) &&
+        !/<script\b|<foreignObject\b|\bon\w+\s*=|(?:href|src)\s*=\s*["']\s*(?:https?:|javascript:|file:)/i.test(
+          s,
+        ),
+      "expected self-contained SVG without scripts, handlers or external references",
+    ),
+});
+
+const FrameBaseSchema = z.object({
+  ...NodeBase,
+  type: z.literal("frame"),
+  fills: z.array(PaintSchema).default([]),
+  strokes: z.array(StrokeSchema).default([]),
+  radii: CornerRadiiSchema.default([0, 0, 0, 0]),
+  clip: z.boolean().default(false),
+  overflow: z.enum(["NONE", "HORIZONTAL", "VERTICAL", "BOTH"]).default("NONE"),
+  effects: z
+    .array(
+      z.union([
+        ShadowSchema,
+        z.object({
+          type: z.enum(["LAYER_BLUR", "BACKGROUND_BLUR"]),
+          radius: NonNegative,
+          visible: z.boolean().default(true),
+        }),
+      ]),
+    )
+    .max(100)
+    .default([]),
+  component: z.boolean().default(false),
+  mask: z.array(PaintSchema).optional(),
+  blendMode: z
+    .enum([
+      "NORMAL",
+      "MULTIPLY",
+      "SCREEN",
+      "OVERLAY",
+      "DARKEN",
+      "LIGHTEN",
+      "COLOR_DODGE",
+      "COLOR_BURN",
+      "HARD_LIGHT",
+      "SOFT_LIGHT",
+      "DIFFERENCE",
+      "EXCLUSION",
+      "HUE",
+      "SATURATION",
+      "COLOR",
+      "LUMINOSITY",
+    ])
+    .optional(),
+});
+export type FrameNode = z.infer<typeof FrameBaseSchema> & { children: SceneNode[] };
+export const FrameNodeSchema = FrameBaseSchema.extend({
+  get children(): z.ZodArray<z.ZodType<SceneNode>> {
+    return z.array(SceneNodeSchema);
+  },
+});
 
 export const RectNodeSchema = z.object({
   ...NodeBase,
@@ -209,6 +287,7 @@ export const TextNodeSchema = z.object({
   verticalAlign: z.enum(["top", "center", "bottom"]).default("top"),
   /** `fixed` keeps w×h; `width` grows horizontally (no wrapping); `height` wraps at `w`. */
   sizing: z.enum(["fixed", "width", "height"]).default("fixed"),
+  effects: z.array(ShadowSchema).optional(),
 });
 
 export type RectNode = z.infer<typeof RectNodeSchema>;
@@ -229,7 +308,7 @@ export const GroupNodeSchema = z.object({
   visible: z.boolean().default(true),
   // Getter + explicit return type: zod v4's way to declare a recursive schema that
   // TypeScript can infer without collapsing children to `unknown`.
-  get children(): z.ZodArray<typeof SceneNodeSchema> {
+  get children(): z.ZodArray<z.ZodType<SceneNode>> {
     return z.array(SceneNodeSchema).min(1);
   },
 });
@@ -241,10 +320,27 @@ export const SceneNodeSchema = z.discriminatedUnion("type", [
   ImageNodeSchema,
   TextNodeSchema,
   GroupNodeSchema,
+  FrameNodeSchema,
+  SvgNodeSchema,
 ]);
 
-export type GroupNode = z.infer<typeof GroupNodeSchema>;
-export type SceneNode = z.infer<typeof SceneNodeSchema>;
+export interface GroupNode {
+  id: string;
+  name: string;
+  type: "group";
+  opacity: number;
+  visible: boolean;
+  children: SceneNode[];
+}
+export type SceneNode =
+  | RectNode
+  | EllipseNode
+  | VectorNode
+  | ImageNode
+  | TextNode
+  | GroupNode
+  | FrameNode
+  | z.infer<typeof SvgNodeSchema>;
 
 export const SlideSchema = z.object({
   name: z.string(),
@@ -270,7 +366,7 @@ export type Slide = z.infer<typeof SlideSchema>;
 export const SceneSchema = z.object({
   version: z.literal(SCENE_VERSION),
   source: z.object({
-    kind: z.enum(["pdf", "pptx"]),
+    kind: z.enum(["pdf", "pptx", "web"]),
     name: z.string(),
     pages: z.number().int().positive(),
   }),

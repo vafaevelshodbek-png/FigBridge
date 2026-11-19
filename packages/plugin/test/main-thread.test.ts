@@ -146,6 +146,15 @@ const slide: Slide = {
 
 beforeEach(async () => {
   fake = installFakeFigma();
+  const post = fake.ui.postMessage;
+  fake.ui.postMessage = (message: unknown) => {
+    post(message);
+    const m = message as MainToUi;
+    if (m.kind === "yield")
+      queueMicrotask(() => {
+        send({ kind: "yield.done", ticket: m.ticket });
+      });
+  };
   Object.assign(globalThis, { __html__: "<html></html>", __PLUGIN_VERSION__: "0.0.0-test" });
   vi.resetModules();
   await import("../src/main/code.js");
@@ -301,11 +310,87 @@ describe("read methods", () => {
       exportBehaviour.rasterHangs = false;
     }
   });
+  it("allows a bounded caller-specific raster wait without changing the default", async () => {
+    serveBlobs({});
+    const frame = fake.createFrame();
+    fake.currentPage.appendChild(frame);
+    exportBehaviour.rasterHangs = true;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const pending = call("node.export", {
+        nodeId: frame.id,
+        format: "png",
+        rasterTimeoutMs: 100,
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(ok(await pending)).toMatchObject({ mimeType: "image/svg+xml" });
+    } finally {
+      vi.useRealTimers();
+      exportBehaviour.rasterHangs = false;
+    }
+  });
 });
 
 describe("write methods", () => {
   beforeEach(() => {
     send({ kind: "access.set", mode: "unrestricted" });
+  });
+
+  it("organizes at most three pages, reuses names, and preserves existing children", async () => {
+    const existing = fake.createRectangle();
+    fake.currentPage.appendChild(existing);
+    const first = ok(
+      await call("page.ensure", { name: "Screens", renameId: fake.currentPage.id, maxPages: 3 }),
+    );
+    expect(fake.currentPage.children).toContain(existing);
+    expect(ok(await call("page.ensure", { name: "Screens", maxPages: 3 }))["id"]).toBe(first["id"]);
+    ok(await call("page.ensure", { name: "Maps", maxPages: 3 }));
+    ok(await call("page.ensure", { name: "Assets", maxPages: 3 }));
+    expect(await call("page.ensure", { name: "Fourth", maxPages: 3 })).toMatchObject({
+      ok: false,
+      error: { code: "VALIDATION" },
+    });
+    expect(fake.root.children).toHaveLength(3);
+    expect(existing.removed).toBe(false);
+  });
+
+  it("re-imports a source key once and keeps old content on a strict failure", async () => {
+    const input = { ...slide, children: [] };
+    const first = ok(
+      await call("scene.render", { slide: input, x: 10, y: 20, sourceKey: "test:screen" }),
+    );
+    const second = ok(
+      await call("scene.render", { slide: input, x: 999, y: 999, sourceKey: "test:screen" }),
+    );
+    expect(first["frameId"]).not.toBe(second["frameId"]);
+    expect(fake.currentPage.children).toHaveLength(1);
+    expect(fake.currentPage.children[0]).toMatchObject({ x: 10, y: 20 });
+    const broken = {
+      ...input,
+      children: [
+        {
+          type: "image" as const,
+          id: "bad",
+          name: "bad",
+          x: 0,
+          y: 0,
+          w: 10,
+          h: 10,
+          image: { type: "image" as const, blob: "img:missing0" },
+        },
+      ],
+    };
+    serveBlobs({});
+    const failure = await call("scene.render", {
+      slide: broken,
+      x: 0,
+      y: 0,
+      sourceKey: "test:screen",
+      strict: true,
+    });
+    expect(failure).toMatchObject({ ok: false, error: { code: "VALIDATION" } });
+    expect(fake.currentPage.children).toHaveLength(1);
+    expect(fake.currentPage.children[0]?.id).toBe(second["frameId"]);
   });
 
   it("scene.render binds theme colours to one variable collection, reused across slides", async () => {
@@ -486,6 +571,53 @@ describe("write methods", () => {
     expect(result).toEqual({ deleted: [rect.id], missing: ["404:1", fake.currentPage.id] });
   });
 
+  it("updates and reads all four effect types, then clears them", async () => {
+    const rect = fake.createRectangle();
+    fake.currentPage.appendChild(rect);
+    const effects = [
+      {
+        type: "DROP_SHADOW" as const,
+        color: { r: 0, g: 0, b: 0, a: 0.15 },
+        offset: { x: 0, y: 4 },
+        radius: 12,
+      },
+      {
+        type: "INNER_SHADOW" as const,
+        color: { r: 1, g: 0, b: 0, a: 0.5 },
+        offset: { x: -2, y: 0 },
+        radius: 4,
+        spread: -1,
+      },
+      { type: "LAYER_BLUR" as const, radius: 8 },
+      { type: "BACKGROUND_BLUR" as const, radius: 6, visible: false },
+    ];
+    ok(await call("node.update", { nodeId: rect.id, props: { effects } }));
+    const parsed = METHODS["node.update"].params.parse({ nodeId: rect.id, props: { effects } });
+    expect(ok(await call("node.get", { nodeId: rect.id }))).toMatchObject({
+      node: { effects: parsed.props.effects },
+    });
+    expect(fake.undoSteps).toBe(1);
+    ok(await call("node.update", { nodeId: rect.id, props: { effects: [] } }));
+    expect(ok(await call("node.get", { nodeId: rect.id }))).toMatchObject({
+      node: { effects: [] },
+    });
+  });
+
+  it("rejects effects on an unsupported node before changing other properties", async () => {
+    const rect = fake.createRectangle();
+    rect.name = "Original";
+    fake.currentPage.appendChild(rect);
+    Object.defineProperty(rect, "effects", { value: undefined, configurable: true });
+    expect(
+      await call("node.update", {
+        nodeId: rect.id,
+        props: { name: "Changed", effects: [] },
+      }),
+    ).toMatchObject({ ok: false, error: { code: "VALIDATION" } });
+    expect(rect.name).toBe("Original");
+    expect(fake.undoSteps).toBe(0);
+  });
+
   it("nodes.create renders loose nodes into a parent", async () => {
     const frame = fake.createFrame();
     fake.currentPage.appendChild(frame);
@@ -592,6 +724,27 @@ describe("agent access", () => {
   it("asks by default, and reports the mode in session.info", async () => {
     expect(ok(await call("session.info", {}))).toMatchObject({ access: "ask", paused: false });
     expect(posted()).toContainEqual({ kind: "access", mode: "ask", paused: false });
+  });
+
+  it("ask: effects wait for approval and read-only refuses them", async () => {
+    const node = frame();
+    const change = start("node.update", {
+      nodeId: node.id,
+      props: { effects: [{ type: "LAYER_BLUR", radius: 8 }] },
+    });
+    await approvalFor(change.id);
+    expect(node.effects).toEqual([]);
+    send({ kind: "approval.answer", id: change.id, answer: "once" });
+    await vi.waitFor(() => {
+      expect(change.response()?.ok).toBe(true);
+    });
+    expect(node.effects).toMatchObject([{ type: "LAYER_BLUR", radius: 8 }]);
+    send({ kind: "access.set", mode: "read-only" });
+    expect(await call("node.update", { nodeId: node.id, props: { effects: [] } })).toMatchObject({
+      ok: false,
+      error: { code: "READ_ONLY" },
+    });
+    expect(node.effects).toHaveLength(1);
   });
 
   it("ask: a change waits for the user; 'once' lets one through", async () => {
@@ -783,6 +936,20 @@ describe("undo agent", () => {
     expect(lastUndo()).toMatchObject({ label: 'change "Renamed"', possible: true });
     await undoNow();
     expect([node.name, node.x, node.opacity]).toEqual(["Card", 10, 1]);
+  });
+
+  it("undo restores existing effects without changing unrelated user edits", async () => {
+    const node = fake.createRectangle();
+    const original = [
+      { type: "LAYER_BLUR" as const, blurType: "NORMAL" as const, radius: 3, visible: true },
+    ];
+    node.effects = original;
+    fake.currentPage.appendChild(node);
+    ok(await call("node.update", { nodeId: node.id, props: { effects: [] } }));
+    node.name = "User edit";
+    await undoNow();
+    expect(node.effects).toEqual(original);
+    expect(node.name).toBe("User edit");
   });
 
   it("steps back through several agent changes, newest first", async () => {

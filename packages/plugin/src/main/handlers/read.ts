@@ -5,6 +5,8 @@ import type { NodeSummary } from "@figbridge/protocol";
 import { type Handler, PluginError, requireNode } from "./context.js";
 import { describe, summarize } from "./summary.js";
 
+declare const __PLUGIN_BUILD__: string;
+
 function currentPage() {
   return { id: figma.currentPage.id, name: figma.currentPage.name, current: true };
 }
@@ -17,6 +19,18 @@ export const sessionInfo: Handler<"session.info"> = (_params, ctx) =>
     selectionCount: figma.currentPage.selection.length,
     access: ctx.access.mode,
     paused: ctx.access.paused,
+    pluginBuild: typeof __PLUGIN_BUILD__ === "string" ? __PLUGIN_BUILD__ : "unbundled-test",
+    capabilities: [
+      "scene.frame",
+      "scene.svg",
+      "scene.mask",
+      "scene.effects",
+      "scene.component",
+      "page.ensure",
+      "scene.sourceKey",
+      "scene.strict",
+      "scene.cooperativeYield",
+    ],
   });
 
 export const pageList: Handler<"page.list"> = () =>
@@ -107,7 +121,10 @@ const MIME = { png: "image/png", jpg: "image/jpeg", svg: "image/svg+xml" } as co
  */
 export const RASTER_EXPORT_TIMEOUT_MS = 15_000;
 
-export const nodeExport: Handler<"node.export"> = async ({ nodeId, format, scale }, ctx) => {
+export const nodeExport: Handler<"node.export"> = async (
+  { nodeId, format, scale, rasterTimeoutMs },
+  ctx,
+) => {
   const node = await requireNode(nodeId);
   if (!("exportAsync" in node))
     throw new PluginError("VALIDATION", `Node ${nodeId} cannot be exported.`);
@@ -123,7 +140,7 @@ export const nodeExport: Handler<"node.export"> = async ({ nodeId, format, scale
         format: format === "png" ? "PNG" : "JPG",
         constraint: { type: "SCALE", value: scale },
       }),
-      RASTER_EXPORT_TIMEOUT_MS,
+      rasterTimeoutMs ?? RASTER_EXPORT_TIMEOUT_MS,
     );
   }
   if (bytes === undefined) {

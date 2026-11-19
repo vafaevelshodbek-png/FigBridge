@@ -31,7 +31,7 @@ function countScene(nodes: readonly { type: string; children?: readonly unknown[
     (sum, node) =>
       sum +
       1 +
-      (node.type === "group"
+      (node.type === "group" || node.type === "frame"
         ? countScene((node.children ?? []) as { type: string; children?: readonly unknown[] }[])
         : 0),
     0,
@@ -63,7 +63,7 @@ export async function assess(
     case "scene.render": {
       const slide = p["slide"] as { name?: string; children?: { type: string }[] } | undefined;
       const count = countScene(slide?.children ?? []);
-      const replacing = p["replaceId"] !== undefined;
+      const replacing = p["replaceId"] !== undefined || p["sourceKey"] !== undefined;
       const summary = `${replacing ? "Replace a frame with" : "Add"} slide "${slide?.name ?? ""}" (${String(count)} layers)`;
       return { risk: replacing || count > LARGE_CHANGE ? "destructive" : "write", summary };
     }

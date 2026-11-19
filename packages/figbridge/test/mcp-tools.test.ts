@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createCanvas } from "@napi-rs/canvas";
 import { pino } from "pino";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { type HubClient, LocalHubClient, RemoteHubClient } from "../src/client.js";
 import { BlobStore } from "../src/hub/blob-store.js";
 import { Hub } from "../src/hub/hub.js";
@@ -135,19 +135,66 @@ describe.each([
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     await mcp.close();
     await plugin?.close();
     plugin = undefined;
     await server.close();
   });
 
-  it("lists 14 figma_ tools with honest annotations", async () => {
+  it("lists 15 figma_ tools with honest annotations", async () => {
     const { tools } = await mcp.listTools();
-    expect(tools).toHaveLength(14);
+    expect(tools).toHaveLength(15);
     for (const t of tools) expect(t.name).toMatch(/^figma_/);
     const byName = Object.fromEntries(tools.map((t) => [t.name, t.annotations]));
     expect(byName["figma_outline"]).toMatchObject({ readOnlyHint: true, destructiveHint: false });
     expect(byName["figma_delete"]).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(byName["figma_comments"]).toMatchObject({ readOnlyHint: true, openWorldHint: true });
+  });
+
+  it("validates comment reads without needing a plugin or accepting token arguments", async () => {
+    const result = await tool("figma_comments", { file: "https://evil.test/design/key/a" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("VALIDATION");
+    expect(calls).toHaveLength(0);
+    const { tools } = await mcp.listTools();
+    expect(
+      tools.find((t) => t.name === "figma_comments")?.inputSchema.properties,
+    ).not.toHaveProperty("token");
+  });
+
+  it("reads REST comments through MCP without routing credentials to the hub or plugin", async () => {
+    vi.stubEnv("FIGMA_ACCESS_TOKEN", "test-only-token");
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(
+        Response.json({
+          comments: [
+            {
+              id: "c1",
+              message: "Review the title",
+              user: { id: "u1", handle: "Reviewer" },
+              created_at: "2026-10-20T10:00:00Z",
+              client_meta: { x: 4, y: 5 },
+            },
+          ],
+        }),
+      ),
+    );
+    const result = await tool("figma_comments", { file: "File123" });
+    expect(result.isError).not.toBe(true);
+    expect(json(result)).toMatchObject({ total: 1, comments: [{ message: "Review the title" }] });
+    expect(JSON.stringify(result)).not.toContain("test-only-token");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("explains missing REST credentials before requiring a plugin", async () => {
+    vi.stubEnv("FIGMA_ACCESS_TOKEN", "");
+    const result = await tool("figma_comments", { file: "File123" });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("UNAUTHORIZED");
+    expect(result.content[0]?.text).toContain("file_comments:read");
+    expect(calls).toHaveLength(0);
   });
 
   it("tells the agent to open the plugin when no file is connected", async () => {
@@ -269,6 +316,22 @@ describe.each([
     expect(
       json(await tool("figma_update", { nodeId: "1:2", props: { name: "Renamed" } })),
     ).toMatchObject({ name: "Renamed" });
+    const effect = { type: "LAYER_BLUR", radius: 8 };
+    expect(
+      (await tool("figma_update", { nodeId: "1:2", props: { effects: [effect] } })).isError,
+    ).not.toBe(true);
+    expect(calls.at(-1)).toMatchObject({
+      method: "node.update",
+      params: { props: { effects: [{ ...effect, visible: true, blurType: "NORMAL" }] } },
+    });
+    expect(
+      (
+        await tool("figma_update", {
+          nodeId: "1:2",
+          props: { effects: [{ ...effect, radius: -1 }] },
+        })
+      ).isError,
+    ).toBe(true);
     expect(json(await tool("figma_clone", { nodeId: "1:2" }))).toMatchObject({ id: "1:3" });
     expect(json(await tool("figma_delete", { nodeIds: ["1:2"] }))).toMatchObject({
       deleted: ["1:2"],

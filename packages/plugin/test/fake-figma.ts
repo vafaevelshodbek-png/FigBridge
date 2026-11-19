@@ -170,6 +170,8 @@ export class FakeFigma {
   getLocalTextStylesAsync = () => Promise.resolve([...this.textStyles]);
 
   createFrame = () => new FakeNode(this, "FRAME");
+  createComponent = () => new FakeNode(this, "COMPONENT");
+  createPage = () => this.addPage("Page");
   /** Figma Slides only: a 1920 × 1080 slide appended to the presentation. */
   createSlide = () => {
     if (this.editorType !== "slides") fail("createSlide is only available in Figma Slides");
@@ -328,6 +330,7 @@ export class FakeNode {
   parent: FakeNode | null = null;
   name = "";
   visible = true;
+  effects: readonly Effect[] = [];
   clipsContent = false;
   #width = 100;
   #height = 100;

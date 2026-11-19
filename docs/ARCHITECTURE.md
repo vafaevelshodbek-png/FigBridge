@@ -27,6 +27,10 @@ Non-goals: running without Figma Desktop; round-tripping Figma back to PPTX; OCR
 
 - **Hub.** One process owns port 7331 (PID lockfile). Additional MCP processes started by other clients detect the owner and relay to it, so several agents can share one plugin connection.
 - **Plugin.** Two halves, as Figma requires: `ui.html` holds the WebSocket and reassembles binary blobs; `code.js` runs the Plugin API. They talk through `postMessage` using the same envelope.
+- **Comments.** An optional Node-side REST adapter reads native Figma comments, which the
+  Plugin API does not expose. MCP and CLI share credential loading, validation and bounded
+  thread filtering; neither the REST token nor the comments request enters the hub/plugin
+  transport. See [ADR 0007](adr/0007-read-figma-comments.md) and [setup](comments.md).
 - **Importers.** Pure functions `document → Scene`. They never talk to Figma. The hub sends the Scene to the plugin, which renders it.
 
 ## Packages (pnpm workspace)

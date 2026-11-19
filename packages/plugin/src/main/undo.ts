@@ -23,6 +23,7 @@ export interface Before {
   fills?: readonly Paint[];
   cornerRadius?: number;
   characters?: string;
+  effects?: readonly Effect[];
 }
 
 export type UndoEntry =
@@ -107,6 +108,7 @@ export function capture(node: SceneNode, props: Record<string, unknown>): Before
   )
     before.cornerRadius = node.cornerRadius;
   if (props["text"] !== undefined && node.type === "TEXT") before.characters = node.characters;
+  if (props["effects"] !== undefined && "effects" in node) before.effects = node.effects;
   return before;
 }
 
@@ -119,6 +121,7 @@ async function restore(node: SceneNode, before: Before, fonts: FontLoader): Prom
   if (before.rotation !== undefined && "rotation" in node) node.rotation = before.rotation;
   if (before.opacity !== undefined && "opacity" in node) node.opacity = before.opacity;
   if (before.visible !== undefined) node.visible = before.visible;
+  if (before.effects !== undefined && "effects" in node) node.effects = before.effects;
   if (before.fills !== undefined && "fills" in node) node.fills = before.fills;
   if (before.cornerRadius !== undefined && "cornerRadius" in node)
     (node as SceneNode & CornerMixin).cornerRadius = before.cornerRadius;

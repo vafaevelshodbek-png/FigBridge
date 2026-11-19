@@ -24,7 +24,8 @@ export interface RenderOptions {
 /** The slide's nodes with every text run set to `family`. */
 function withFontFamily(nodes: readonly SceneNode[], family: string): SceneNode[] {
   return nodes.map((node) => {
-    if (node.type === "group") return { ...node, children: withFontFamily(node.children, family) };
+    if (node.type === "group" || node.type === "frame")
+      return { ...node, children: withFontFamily(node.children, family) };
     if (node.type !== "text") return node;
     return { ...node, runs: node.runs.map((run) => ({ ...run, fontFamily: family })) };
   });
@@ -80,6 +81,29 @@ async function drawNode(ctx: SKRSContext2D, node: SceneNode, blobs: BlobSource):
   const box: Rect = { x: 0, y: 0, w: node.w, h: node.h };
 
   switch (node.type) {
+    case "frame": {
+      const path = roundedRect(box, node.radii);
+      for (const paint of node.fills)
+        await fillBox(
+          ctx,
+          paint,
+          box,
+          blobs,
+          () => {
+            ctx.fill(path);
+          },
+          path,
+        );
+      strokePath(ctx, path, node.strokes);
+      if (node.clip) ctx.clip(path);
+      for (const child of node.children) await drawNode(ctx, child, blobs);
+      break;
+    }
+    case "svg": {
+      const image = await loadImage(Buffer.from(node.svg));
+      ctx.drawImage(image, 0, 0, node.w, node.h);
+      break;
+    }
     case "rect":
     case "image": {
       const path = roundedRect(box, node.radii);

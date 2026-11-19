@@ -13,6 +13,8 @@ export interface CompareOptions {
    * anti-aliasing and colour-profile noise; lower it for strict pixel-perfect checks.
    */
   tolerance?: number;
+  /** Also compare transparency. Disabled by default for backwards compatibility. */
+  includeAlpha?: boolean;
 }
 
 export interface Comparison {
@@ -55,7 +57,7 @@ export async function compareImages(
   let differing = 0;
   for (let i = 0; i < e.data.length; i += 4) {
     let delta = 0;
-    for (let c = 0; c < 3; c++)
+    for (let c = 0; c < (options.includeAlpha ? 4 : 3); c++)
       delta = Math.max(delta, Math.abs((a.data[i + c] ?? 0) - (e.data[i + c] ?? 0)));
     const differs = delta > tolerance;
     if (differs) differing++;

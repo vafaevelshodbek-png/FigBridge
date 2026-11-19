@@ -5,13 +5,15 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 const pkg = fileURLToPath(new URL("../", import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), "figbridge-smoke-"));
+if (dirname(resolve(dir)) !== resolve(tmpdir()) || !basename(dir).startsWith("figbridge-smoke-"))
+  throw new Error("Unexpected smoke workspace");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 // pnpm, not npm, packs: only pnpm rewrites catalog: and workspace: versions (as it will when
 // publishing); the install then uses plain npm, like a user.
@@ -42,6 +44,10 @@ try {
   const cli = join(installed, "dist", "cli.mjs");
   const version = run(process.execPath, [cli, "--version"], dir).trim();
   check(/^\d+\.\d+\.\d+/.test(version), `figbridge --version → ${version}`);
+  check(
+    run(process.execPath, [cli, "comments", "--help"], dir).includes("--node-id"),
+    "comments CLI is shipped",
+  );
 
   const manifest = run(process.execPath, [cli, "plugin"], dir).trim();
   check(existsSync(manifest), "figbridge plugin → manifest exists");
@@ -60,7 +66,22 @@ try {
     `import { VERSION, TOOLS } from "figbridge"; process.stdout.write(JSON.stringify([VERSION, TOOLS.length]));`,
   );
   const api = run(process.execPath, ["api.mjs"], dir).trim();
-  check(api === JSON.stringify([version, 14]), `library import → ${api}`);
+  check(api === JSON.stringify([version, 15]), `library import → ${api}`);
+
+  writeFileSync(
+    join(dir, "web-api.mjs"),
+    `
+import { captureDOM, prepareDOM } from 'figbridge/web/capture';
+import { importCapture } from 'figbridge/web/import';
+import { normalizeCapture } from 'figbridge/web/normalize';
+if(typeof captureDOM!=='function'||typeof prepareDOM!=='function'||typeof importCapture!=='function')throw Error('missing web API');
+if(normalizeCapture({type:'frame',mask:[]}).blendMode!=='NORMAL')throw Error('missing normalization');
+process.stdout.write('web API ready');`,
+  );
+  check(
+    run(process.execPath, ["web-api.mjs"], dir).trim() === "web API ready",
+    "web capture/import API works outside the workspace",
+  );
 
   // A private state dir and port, so a hub the developer is running is not touched.
   const env = {
@@ -68,6 +89,7 @@ try {
     FIGBRIDGE_HOME: join(dir, "state"),
     FIGBRIDGE_PORT: "47331",
     FIGBRIDGE_LOG: "silent",
+    FIGMA_ACCESS_TOKEN: "",
   };
   const client = new Client({ name: "smoke", version: "0.0.0" });
   await client.connect(
@@ -75,13 +97,21 @@ try {
   );
   const { tools } = await client.listTools();
   check(
-    tools.length === 14 && tools.every((t) => t.name.startsWith("figma_")),
+    tools.length === 15 && tools.every((t) => t.name.startsWith("figma_")),
     `figbridge mcp serves ${tools.length} tools`,
   );
   const noSession = await client.callTool({ name: "figma_file_info", arguments: {} });
   check(
     noSession.isError === true && /NO_SESSION/.test(noSession.content[0]?.text ?? ""),
     "tools answer with actionable errors",
+  );
+  const noRestToken = await client.callTool({
+    name: "figma_comments",
+    arguments: { file: "File123" },
+  });
+  check(
+    noRestToken.isError === true && /UNAUTHORIZED/.test(noRestToken.content[0]?.text ?? ""),
+    "comments tool explains its separate REST credential without needing a plugin",
   );
   await client.close();
 } finally {

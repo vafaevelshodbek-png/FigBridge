@@ -12,6 +12,10 @@ export class UiBridge {
   post(message: MainToUi): void {
     figma.ui.postMessage(message);
   }
+  /** A message round trip yields without background-tab timer throttling. */
+  yieldControl(): Promise<void> {
+    return this.#ask<boolean>((ticket) => ({ kind: "yield", ticket })).then(() => undefined);
+  }
 
   /** Download blob bytes from the hub. */
   getBlob(blob: string): Promise<Uint8Array> {
@@ -26,6 +30,9 @@ export class UiBridge {
   /** Handle a reply from the UI; returns false for messages that are not replies. */
   handleReply(message: UiToMain): boolean {
     switch (message.kind) {
+      case "yield.done":
+        this.#settle(message.ticket, true, undefined);
+        return true;
       case "blob.got":
         this.#settle(message.ticket, message.bytes, message.error);
         return true;

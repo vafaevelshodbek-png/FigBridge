@@ -108,6 +108,7 @@ describe("method catalog", () => {
       "node.delete",
       "node.update",
       "nodes.create",
+      "page.ensure",
       "scene.render",
     ]);
   });
@@ -137,5 +138,48 @@ describe("access constants", () => {
       .map(([name]) => name)
       .sort();
     expect([...MUTATING_METHODS].sort()).toEqual(mutating);
+  });
+});
+
+describe("effect updates", () => {
+  const shadow = {
+    type: "DROP_SHADOW",
+    color: { r: 0, g: 0, b: 0, a: 0.15 },
+    offset: { x: 0, y: 4 },
+    radius: 12,
+  };
+
+  it("accepts shadows, normal blurs and clearing the effect list", () => {
+    const parsed = METHODS["node.update"].params.parse({
+      nodeId: "1:2",
+      props: {
+        effects: [shadow, { type: "LAYER_BLUR", radius: 8 }],
+      },
+    });
+    expect(parsed.props).toMatchObject({
+      effects: [
+        { ...shadow, visible: true, blendMode: "NORMAL" },
+        { type: "LAYER_BLUR", radius: 8, visible: true, blurType: "NORMAL" },
+      ],
+    });
+    expect(
+      METHODS["node.update"].params.parse({ nodeId: "1:2", props: { effects: [] } }).props,
+    ).toEqual({ effects: [] });
+  });
+
+  it.each([
+    { ...shadow, radius: -1 },
+    { ...shadow, color: { r: 0, g: 0, b: 0, a: 2 } },
+    { ...shadow, offset: { x: Number.POSITIVE_INFINITY, y: 0 } },
+    { type: "LAYER_BLUR", radius: Number.NaN },
+    { type: "BACKGROUND_BLUR", radius: 2, blurType: "PROGRESSIVE" },
+    { type: "UNKNOWN", radius: 2 },
+  ])("rejects an invalid effect: %j", (effect) => {
+    expect(
+      METHODS["node.update"].params.safeParse({
+        nodeId: "1:2",
+        props: { effects: [effect] },
+      }).success,
+    ).toBe(false);
   });
 });

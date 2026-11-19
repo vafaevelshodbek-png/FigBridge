@@ -23,6 +23,7 @@ const handlers: HandlerTable = {
   "session.info": read.sessionInfo,
   "page.list": read.pageList,
   "page.set": read.pageSet,
+  "page.ensure": write.pageEnsure,
   "document.outline": read.documentOutline,
   "selection.get": read.selectionGet,
   "node.get": read.nodeGet,
@@ -189,6 +190,7 @@ figma.ui.onmessage = (message: UiToMain) => {
       });
       return;
     case "blob.got":
+    case "yield.done":
     case "blob.put.done":
       return; // handled by ui.handleReply
   }

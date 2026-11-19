@@ -29,18 +29,56 @@ You need Node.js 22 or newer and Figma Desktop (browser Figma cannot run develop
    claude mcp add figbridge -- npx -y figbridge mcp          # Claude Code
    ```
 
-   ```jsonc
-   // Claude Desktop / Cursor (.cursor/mcp.json)
+   Claude Desktop (`claude_desktop_config.json`) or Cursor (`.cursor/mcp.json`):
+
+   ```json
    { "mcpServers": { "figbridge": { "command": "npx", "args": ["-y", "figbridge", "mcp"] } } }
-   // VS Code (.vscode/mcp.json) uses the key "servers" instead of "mcpServers"
    ```
+
+   VS Code (`.vscode/mcp.json`):
+
+   ```json
+   { "servers": { "figbridge": { "type": "stdio", "command": "npx", "args": ["-y", "figbridge", "mcp"] } } }
+   ```
+
+   During the pre-release, replace `"command": "npx"` with `"command": "node"` and
+   `"args": ["-y", "figbridge", "mcp"]` with
+   `"args": ["/absolute/path/to/figma-bridge/packages/figbridge/dist/cli.mjs", "mcp"]`, using your checkout's absolute path.
 
 3. **Pair once** — run `npx figbridge pair`, open the figbridge plugin in your Figma file and paste the token.
 4. Ask your agent: *"Import ~/decks/q2.pdf pages 1–5 into Figma."* Slides are laid out in a grid below whatever is already on the page; in a Figma Slides file they are added as slides.
 
 If the plugin says it is not connected, run `npx figbridge doctor`: it checks Node, the token, the plugin and the hub and prints the one thing to fix.
 
+### Try a small deck
+
+In a source checkout, ask your agent to import slide 1 of
+`corpus/poi_bar-chart.pptx` (use the absolute path on your computer), then change
+the chart title in Figma to confirm the text is editable. For a PDF, try page 1 of
+`corpus/beamer_metropolis_demo.pdf`. Keep the plugin open, choose **Ask before changes**,
+and click **Allow** when the import requests approval.
+
+Without an AI client, keep the hub running in a separate terminal and import from the CLI:
+
+```bash
+node packages/figbridge/dist/cli.mjs start
+```
+
+In another terminal, after pairing the plugin:
+
+```bash
+node packages/figbridge/dist/cli.mjs import corpus/poi_bar-chart.pptx --pages 1
+node packages/figbridge/dist/cli.mjs import corpus/beamer_metropolis_demo.pdf --pages 1
+```
+
+For a first-time setup review, see the [ten-minute walkthrough](docs/first-import-check.md).
+
 ## Tools
+
+Native Figma comments and replies are available through `figma_comments` and
+`figbridge comments <file-key-or-url>`. This optional REST capability requires a local
+personal access token with `file_comments:read`; see [setup and usage](docs/comments.md).
+It works without the plugin and reads comments across the whole file.
 
 | Tool | What it does |
 |---|---|
@@ -53,6 +91,22 @@ If the plugin says it is not connected, run `npx figbridge doctor`: it checks No
 | `figma_import_deck` | PDF or PPTX → editable slide frames |
 
 The same operations are available from the CLI: `figbridge status | call | export | compare | import`. If something does not connect, `figbridge doctor` checks the whole setup and says what to fix.
+
+`figma_update` can replace a layer's effects. For example, pass
+`props: { "effects": [{ "type": "DROP_SHADOW", "color": { "r": 0, "g": 0, "b": 0, "a": 0.15 }, "offset": { "x": 0, "y": 4 }, "radius": 12 }] }`
+for a shadow, or `props: { "effects": [{ "type": "LAYER_BLUR", "radius": 8 }] }`
+for blur. `INNER_SHADOW` and `BACKGROUND_BLUR` are also supported. RGBA channels
+are 0–1; offsets, radius and optional shadow spread are pixels. Visibility defaults
+to true; blending and blur type are NORMAL. Pass `effects: []` to clear effects,
+or omit the field to keep them. `figma_get_node` reports the effect list; approval
+and **Undo agent** work as for other layer changes.
+
+## Web UI reconstruction (experimental)
+
+Capture browser layout as editable Figma frames, text, vectors and image layers.
+The capture and import APIs support full pages, scroll content and repeat imports
+with a stable source key. See the [workflow and limitations](docs/web-ui-reconstruction.md)
+for setup and visual verification.
 
 ## How it works
 
